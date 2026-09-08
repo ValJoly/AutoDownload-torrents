@@ -1,0 +1,79 @@
+TR4CKER API bridge — Architecture & Data Model
+=============================================
+
+Purpose
+-------
+This repository implements a minimal FastAPI bridge to the TR4CKER public API (https://tr4ker.net/api). It is intended to:
+
+- Provide a small, stable surface for local clients to query TR4CKER without embedding the API key in many places.
+- Offer convenience endpoints to download and launch `.torrent` files on the server host.
+
+High-level architecture
+-----------------------
+
+1. `main.py` runs a FastAPI app and exposes the endpoints under `/api/torrents`.
+2. `request_tr4cker()` is the central helper that attaches the `X-Api-Key` header and forwards the request to TR4CKER.
+3. Responses are returned to the caller as JSON or as streaming downloads for `.torrent` files.
+4. The `/launch` endpoint downloads a `.torrent` file to a temporary file and then attempts to start a bit-torrent client using one of several strategies:
+	 - `TORRENT_LAUNCH_COMMAND` or `TORRENT_CLIENT_COMMAND` environment variables (preferred),
+	 - `aria2c` if installed,
+	 - platform-specific defaults (`os.startfile` on Windows, `xdg-open`/`open` on Linux/macOS).
+
+Environment variables
+---------------------
+- `TR4CKER_API_KEY` - required. If missing the application raises on startup.
+- `TORRENT_DOWNLOAD_DIR` - optional. Directory used when launching clients that need a download directory.
+- `TORRENT_LAUNCH_COMMAND` / `TORRENT_CLIENT_COMMAND` - optional. Commands may use placeholders:
+	- `{torrent_path}` — full path to the downloaded `.torrent` file
+	- `{slug}` — the torrent slug
+	- `{download_dir}` — configured `TORRENT_DOWNLOAD_DIR` or current working directory
+
+Example launch command (Windows):
+
+```
+TORRENT_LAUNCH_COMMAND="C:\\Program Files\\qBittorrent\\qbittorrent.exe" "{torrent_path}"
+```
+
+Data model notes
+----------------
+Two modules provide typed dataclass mappings for TR4CKER responses:
+
+- `torrents_classes.py` — models the search/list response. Main classes:
+	- `UploaderBadge` — small object for uploader badges.
+	- `Torrent` — individual listing item (id, slug, name, seeders, leechers, tags, created_at, parent category, uploader, etc.).
+	- `Torrents` — paginated response wrapper with `limit`, `page`, `torrents`, `total`, and `total_capped`.
+
+- `torrent_details.py` — models a detailed `Torrents` object for the specific torrent detail endpoint. Fields are more extensive (files, descriptions, technical info, etc.).
+
+Both modules include `from_dict()` and `to_dict()` helpers for converting between JSON dictionaries and Python dataclasses. These helpers assume the TR4CKER API returns fields with fixed names and formats (notably `created_at` formatted as `YYYY-MM-DDTHH:MM:SS`).
+
+Endpoint reference
+------------------
+- `GET /health` — returns `{ "status": "ok" }`.
+- `GET /api/torrents?q=<query>&cat=<category>` — forwards to `GET https://tr4ker.net/api/torrents` with `q` and `cat` params.
+- `GET /api/torrents/{slug}` — forwards to `GET https://tr4ker.net/api/torrents/{slug}`.
+- `GET /api/torrents/{slug}/download` — forwards to `GET https://tr4ker.net/api/torrents/{slug}/download` and streams result with `Content-Disposition` set for attachment.
+- `POST /api/torrents/{slug}/launch` — downloads and launches the torrent as described above.
+
+Implementation details & caveats
+--------------------------------
+- `shutil_which()` in `main.py` currently runs the shell `which` command via `subprocess.run()`. On Windows, the `which` binary may not exist; consider using Python's `shutil.which()` from the standard library to be cross-platform.
+- The code uses Python 3.10+ typing features (e.g. `list[T]` and `X | None` unions). Ensure your runtime matches.
+- The application does not currently include rate-limiting or request caching; if you expect heavy traffic add a cache layer or limiters.
+
+Testing & development
+---------------------
+- Start a development server with `uvicorn main:app --reload` and use the endpoints described above.
+- Write tests around `request_tr4cker()` to mock network failures and validate error handling.
+
+Legal and safety notes
+----------------------
+This project downloads and launches torrent files. The maintainers are not responsible for how it is used. Ensure you comply with laws, copyright, and the TR4CKER API terms of service.
+
+Contact / Contribution
+----------------------
+Open a PR or raise issues in the repository to suggest improvements. Typical contributions:
+
+- Tests and CI configuration
+- Better client-launch strategies and cross-platform compatibility fixes
+- Logging, metrics, and rate-limiting

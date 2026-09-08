@@ -1,0 +1,52 @@
+# Environment files and secrets
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.pfx
+secrets/
+
+# Python caches, environments, and test output
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.venv/
+venv/
+env/
+*.egg-info/
+
+# Flutter/Dart generated files
+AutoTorrent/.dart_tool/
+AutoTorrent/build/
+AutoTorrent/.flutter-plugins
+AutoTorrent/.flutter-plugins-dependencies
+AutoTorrent/.pub-cache/
+AutoTorrent/.pub/
+AutoTorrent/coverage/
+AutoTorrent/**/ephemeral/
+AutoTorrent/**/Generated.xcconfig
+AutoTorrent/**/local.properties
+
+# IDE and local editor settings
+.idea/
+.vscode/
+*.iml
+*.ipr
+*.iws
+
+# Operating system files and logs
+.DS_Store
+Thumbs.db
+*.log
+*.tmp
+*.swp
+
+# Local torrent/download artifacts
+*.torrent
+downloads/
+tmp/
