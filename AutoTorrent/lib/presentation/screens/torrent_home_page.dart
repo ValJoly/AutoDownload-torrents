@@ -138,7 +138,7 @@ class _TorrentHomePageState extends State<TorrentHomePage> {
                 ),
                 const SizedBox(width: 11),
                 const Text(
-                  'AutoTorrent',
+                  'SkyForge',
                   style: TextStyle(fontWeight: FontWeight.w800),
                 ),
               ],
@@ -195,7 +195,10 @@ class _TorrentHomePageState extends State<TorrentHomePage> {
                             color: Colors.black54,
                           ),
                           const SizedBox(width: 8),
-                          Text('Save to', style: theme.textTheme.labelLarge),
+                          Text(
+                            'Save & Search',
+                            style: theme.textTheme.labelLarge,
+                          ),
                           const SizedBox(width: 8),
                           ChoiceChip(
                             label: const Text('Audiobooks'),
