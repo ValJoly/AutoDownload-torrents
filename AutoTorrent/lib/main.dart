@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
@@ -53,7 +54,9 @@ class TorrentHomePage extends StatefulWidget {
 }
 
 class _TorrentHomePageState extends State<TorrentHomePage> {
-  final _bridgeController = TextEditingController(text: 'http://localhost:8384');
+  final _bridgeController = TextEditingController(
+    text: 'http://192.168.1.72:8384',
+  );
   final _searchController = TextEditingController();
   final _api = BridgeApi();
   List<TorrentItem> _results = [];
@@ -82,6 +85,7 @@ class _TorrentHomePageState extends State<TorrentHomePage> {
       final results = await _api.search(
         _bridgeController.text,
         query,
+        _library,
       );
       if (mounted) setState(() => _results = results);
     } catch (error) {
@@ -124,7 +128,7 @@ class _TorrentHomePageState extends State<TorrentHomePage> {
           keyboardType: TextInputType.url,
           decoration: const InputDecoration(
             labelText: 'Bridge URL',
-            hintText: 'http://192.168.1.10:8384',
+            hintText: 'http://192.168.1.72:8384',
             prefixIcon: Icon(Icons.link),
           ),
         ),
@@ -164,7 +168,10 @@ class _TorrentHomePageState extends State<TorrentHomePage> {
               child: const Icon(Icons.bolt, color: Colors.white, size: 20),
             ),
             const SizedBox(width: 11),
-            const Text('AutoTorrent', style: TextStyle(fontWeight: FontWeight.w800)),
+            const Text(
+              'AutoTorrent',
+              style: TextStyle(fontWeight: FontWeight.w800),
+            ),
           ],
         ),
         actions: [
@@ -183,11 +190,18 @@ class _TorrentHomePageState extends State<TorrentHomePage> {
               padding: const EdgeInsets.fromLTRB(20, 16, 20, 32),
               sliver: SliverList(
                 delegate: SliverChildListDelegate([
-                  Text('Find something to download', style: theme.textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w800)),
+                  Text(
+                    'Find something to download',
+                    style: theme.textTheme.headlineSmall?.copyWith(
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
                   const SizedBox(height: 7),
                   Text(
                     'Search through TR4CKER and send a torrent to your home computer.',
-                    style: theme.textTheme.bodyMedium?.copyWith(color: Colors.black54),
+                    style: theme.textTheme.bodyMedium?.copyWith(
+                      color: Colors.black54,
+                    ),
                   ),
                   const SizedBox(height: 22),
                   TextField(
@@ -206,14 +220,19 @@ class _TorrentHomePageState extends State<TorrentHomePage> {
                   const SizedBox(height: 13),
                   Row(
                     children: [
-                      const Icon(Icons.folder_outlined, size: 18, color: Colors.black54),
+                      const Icon(
+                        Icons.folder_outlined,
+                        size: 18,
+                        color: Colors.black54,
+                      ),
                       const SizedBox(width: 8),
                       Text('Save to', style: theme.textTheme.labelLarge),
                       const SizedBox(width: 8),
                       ChoiceChip(
                         label: const Text('Audiobooks'),
                         selected: _library == 'audiobooks',
-                        onSelected: (_) => setState(() => _library = 'audiobooks'),
+                        onSelected: (_) =>
+                            setState(() => _library = 'audiobooks'),
                       ),
                       const SizedBox(width: 8),
                       ChoiceChip(
@@ -225,15 +244,30 @@ class _TorrentHomePageState extends State<TorrentHomePage> {
                   ),
                   const SizedBox(height: 28),
                   if (_loading)
-                    const Center(child: Padding(padding: EdgeInsets.all(32), child: CircularProgressIndicator()))
+                    const Center(
+                      child: Padding(
+                        padding: EdgeInsets.all(32),
+                        child: CircularProgressIndicator(),
+                      ),
+                    )
                   else if (_error != null)
                     _ErrorCard(message: _error!, onRetry: _search)
                   else if (_results.isEmpty)
                     const _EmptyState()
                   else ...[
-                    Text('${_results.length} results', style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700)),
+                    Text(
+                      '${_results.length} results',
+                      style: theme.textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
                     const SizedBox(height: 12),
-                    ..._results.map((torrent) => _TorrentCard(torrent: torrent, onLaunch: () => _launch(torrent))),
+                    ..._results.map(
+                      (torrent) => _TorrentCard(
+                        torrent: torrent,
+                        onLaunch: () => _launch(torrent),
+                      ),
+                    ),
                   ],
                 ]),
               ),
@@ -263,15 +297,29 @@ class _TorrentCard extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(torrent.name, maxLines: 2, overflow: TextOverflow.ellipsis, style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700)),
+            Text(
+              torrent.name,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: theme.textTheme.titleMedium?.copyWith(
+                fontWeight: FontWeight.w700,
+              ),
+            ),
             const SizedBox(height: 10),
             Wrap(
               spacing: 14,
               runSpacing: 6,
               children: [
                 _Stat(icon: Icons.sd_storage_outlined, text: torrent.size),
-                _Stat(icon: Icons.upload_outlined, text: '${torrent.seeders} seeders', color: Colors.green.shade700),
-                _Stat(icon: Icons.folder_copy_outlined, text: '${torrent.files} files'),
+                _Stat(
+                  icon: Icons.upload_outlined,
+                  text: '${torrent.seeders} seeders',
+                  color: Colors.green.shade700,
+                ),
+                _Stat(
+                  icon: Icons.folder_copy_outlined,
+                  text: '${torrent.files} files',
+                ),
               ],
             ),
             const SizedBox(height: 14),
@@ -298,30 +346,47 @@ class _Stat extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, size: 16, color: color ?? Colors.black45),
-          const SizedBox(width: 5),
-          Text(text, style: TextStyle(color: color ?? Colors.black54, fontSize: 12, fontWeight: FontWeight.w600)),
-        ],
-      );
+    mainAxisSize: MainAxisSize.min,
+    children: [
+      Icon(icon, size: 16, color: color ?? Colors.black45),
+      const SizedBox(width: 5),
+      Text(
+        text,
+        style: TextStyle(
+          color: color ?? Colors.black54,
+          fontSize: 12,
+          fontWeight: FontWeight.w600,
+        ),
+      ),
+    ],
+  );
 }
 
 class _EmptyState extends StatelessWidget {
   const _EmptyState();
   @override
   Widget build(BuildContext context) => Padding(
-        padding: const EdgeInsets.only(top: 54),
-        child: Column(
-          children: [
-            Icon(Icons.travel_explore_rounded, size: 58, color: Theme.of(context).colorScheme.primary.withAlpha(150)),
-            const SizedBox(height: 14),
-            const Text('Your search results will appear here', style: TextStyle(fontWeight: FontWeight.w700)),
-            const SizedBox(height: 5),
-            const Text('The bridge must be running on your computer.', style: TextStyle(color: Colors.black54)),
-          ],
+    padding: const EdgeInsets.only(top: 54),
+    child: Column(
+      children: [
+        Icon(
+          Icons.travel_explore_rounded,
+          size: 58,
+          color: Theme.of(context).colorScheme.primary.withAlpha(150),
         ),
-      );
+        const SizedBox(height: 14),
+        const Text(
+          'Your search results will appear here',
+          style: TextStyle(fontWeight: FontWeight.w700),
+        ),
+        const SizedBox(height: 5),
+        const Text(
+          'The bridge must be running on your computer.',
+          style: TextStyle(color: Colors.black54),
+        ),
+      ],
+    ),
+  );
 }
 
 class _ErrorCard extends StatelessWidget {
@@ -331,24 +396,30 @@ class _ErrorCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Card(
-        elevation: 0,
-        color: Theme.of(context).colorScheme.errorContainer,
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Row(
-            children: [
-              const Icon(Icons.warning_amber_rounded),
-              const SizedBox(width: 12),
-              Expanded(child: Text(message)),
-              IconButton(onPressed: onRetry, icon: const Icon(Icons.refresh)),
-            ],
-          ),
-        ),
-      );
+    elevation: 0,
+    color: Theme.of(context).colorScheme.errorContainer,
+    child: Padding(
+      padding: const EdgeInsets.all(16),
+      child: Row(
+        children: [
+          const Icon(Icons.warning_amber_rounded),
+          const SizedBox(width: 12),
+          Expanded(child: Text(message)),
+          IconButton(onPressed: onRetry, icon: const Icon(Icons.refresh)),
+        ],
+      ),
+    ),
+  );
 }
 
 class TorrentItem {
-  TorrentItem({required this.slug, required this.name, required this.size, required this.seeders, required this.files});
+  TorrentItem({
+    required this.slug,
+    required this.name,
+    required this.size,
+    required this.seeders,
+    required this.files,
+  });
   final String slug;
   final String name;
   final String size;
@@ -356,17 +427,21 @@ class TorrentItem {
   final int files;
 
   factory TorrentItem.fromJson(Map<String, dynamic> json) => TorrentItem(
-        slug: '${json['slug'] ?? ''}',
-        name: '${json['name'] ?? 'Unnamed torrent'}',
-        size: _formatBytes(json['size_bytes']),
-        seeders: _asInt(json['seeders']),
-        files: _asInt(json['file_count']),
-      );
+    slug: '${json['slug'] ?? ''}',
+    name: '${json['name'] ?? 'Unnamed torrent'}',
+    size: _formatBytes(json['size_bytes']),
+    seeders: _asInt(json['seeders']),
+    files: _asInt(json['file_count']),
+  );
 
-  static int _asInt(dynamic value) => value is num ? value.toInt() : int.tryParse('$value') ?? 0;
+  static int _asInt(dynamic value) =>
+      value is num ? value.toInt() : int.tryParse('$value') ?? 0;
   static String _formatBytes(dynamic value) {
-    final bytes = value is num ? value.toDouble() : double.tryParse('$value') ?? 0;
-    if (bytes >= 1000000000) return '${(bytes / 1000000000).toStringAsFixed(1)} GB';
+    final bytes = value is num
+        ? value.toDouble()
+        : double.tryParse('$value') ?? 0;
+    if (bytes >= 1000000000)
+      return '${(bytes / 1000000000).toStringAsFixed(1)} GB';
     if (bytes >= 1000000) return '${(bytes / 1000000).toStringAsFixed(1)} MB';
     return '${(bytes / 1000).toStringAsFixed(0)} KB';
   }
@@ -380,26 +455,80 @@ class BridgeException implements Exception {
 class BridgeApi {
   String _base(String value) => value.trim().replaceFirst(RegExp(r'/$'), '');
 
-  Future<List<TorrentItem>> search(String bridgeUrl, String query) async {
-    final response = await http.get(Uri.parse('${_base(bridgeUrl)}/api/torrents').replace(queryParameters: {'q': query, 'cat': 'livres-audio'}));
-    final data = _decode(response);
-    final list = data is Map<String, dynamic> ? data['torrents'] : data;
-    if (list is! List) throw BridgeException('The bridge returned an unexpected search response.');
-    return list.whereType<Map<String, dynamic>>().map(TorrentItem.fromJson).toList();
+  String _categoryForLibrary(String library) {
+    return library == 'books' ? 'livres' : 'livres-audio';
+  }
+
+  Future<List<TorrentItem>> search(
+    String bridgeUrl,
+    String query,
+    String library,
+  ) async {
+    final uri = Uri.parse('${_base(bridgeUrl)}/api/torrents').replace(
+      queryParameters: {'q': query, 'cat': _categoryForLibrary(library)},
+    );
+    final client = http.Client();
+    try {
+      final response = await client
+          .get(uri)
+          .timeout(
+            const Duration(seconds: 12),
+            onTimeout: () => throw TimeoutException(
+              'The bridge did not respond in time.',
+              const Duration(seconds: 12),
+            ),
+          );
+      final data = _decode(response);
+      final list = data is Map<String, dynamic> ? data['torrents'] : data;
+      if (list is! List)
+        throw BridgeException(
+          'The bridge returned an unexpected search response.',
+        );
+      return list
+          .whereType<Map<String, dynamic>>()
+          .map(TorrentItem.fromJson)
+          .toList();
+    } on TimeoutException {
+      throw BridgeException(
+        'The bridge search timed out. Check the bridge address and server.',
+      );
+    } finally {
+      client.close();
+    }
   }
 
   Future<void> launch(String bridgeUrl, String slug, String library) async {
-    final response = await http.post(
-      Uri.parse('${_base(bridgeUrl)}/api/torrents/$slug/launch'),
-      headers: {'Content-Type': 'application/json'},
-      body: jsonEncode({'library': library}),
-    );
-    _decode(response);
+    final uri = Uri.parse('${_base(bridgeUrl)}/api/torrents/$slug/launch');
+    final client = http.Client();
+    try {
+      final response = await client
+          .post(
+            uri,
+            headers: {'Content-Type': 'application/json'},
+            body: jsonEncode({'library': library}),
+          )
+          .timeout(
+            const Duration(seconds: 12),
+            onTimeout: () => throw TimeoutException(
+              'The bridge did not respond in time.',
+              const Duration(seconds: 12),
+            ),
+          );
+      _decode(response);
+    } on TimeoutException {
+      throw BridgeException(
+        'The bridge launch request timed out. Check the bridge address and server.',
+      );
+    } finally {
+      client.close();
+    }
   }
 
   dynamic _decode(http.Response response) {
     if (response.statusCode < 200 || response.statusCode >= 300) {
-      throw BridgeException('Bridge error (${response.statusCode}). Check the bridge logs.');
+      throw BridgeException(
+        'Bridge error (${response.statusCode}). Check the bridge logs.',
+      );
     }
     try {
       return jsonDecode(response.body);
