@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 import os
 import platform
 import shutil
@@ -14,6 +15,9 @@ from fastapi import Body, FastAPI, HTTPException, Query, Response
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from torrentool.api import Torrent
+
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger("tr4cker_bridge")
 
 load_dotenv()
 
@@ -40,12 +44,15 @@ def tr4cker_headers() -> Dict[str, str]:
 
 
 def request_tr4cker(url: str, *, params: Optional[Dict[str, Any]] = None, stream: bool = False) -> requests.Response:
+    logger.info("Forwarding request to TR4CKER: url=%s params=%s stream=%s", url, params, stream)
     response = requests.get(url, params=params, headers=tr4cker_headers(), stream=stream, timeout=30)
+    logger.info("TR4CKER upstream status=%s for url=%s", response.status_code, url)
     if response.status_code >= 400:
         try:
             detail = response.json()
         except ValueError:
             detail = response.text
+        logger.warning("TR4CKER upstream error for url=%s: %s", url, detail)
         raise HTTPException(status_code=response.status_code, detail={"message": "Tr4cker API request failed", "details": detail})
     return response
 
@@ -67,6 +74,7 @@ def search_torrents(
     - cat = "livres-audio"
     - q = your search term
     """
+    logger.info("Incoming search request: q=%s cat=%s", q, cat)
     response = request_tr4cker(
         f"{API_BASE_URL}/torrents",
         params={"cat": cat, "q": q},
@@ -101,13 +109,17 @@ def launch_torrent_download(slug: str, body: Optional[LaunchTorrentBody] = Body(
     The chosen branch is appended to `TORRENT_DOWNLOAD_DIR`, where `AUDIOBOOKS` and `BOOKS`
     point to the environment-relative folders such as `'\\Audiobooks'` and `'\\Books'`.
     """
+    library_value = body.library if body else "audiobooks"
+    logger.info("Incoming launch request: slug=%s library=%s", slug, library_value)
+
     torrent_response = request_tr4cker(f"{API_BASE_URL}/torrents/{slug}/download", stream=True)
     raw_bytes = torrent_response.content
 
     if not raw_bytes:
         raise HTTPException(status_code=500, detail="Downloaded torrent file is empty.")
 
-    library_value = body.library if body else "audiobooks"
+    logger.info("Downloaded torrent bytes=%s for slug=%s", len(raw_bytes), slug)
+
     download_dir = resolve_download_dir(library_value)
     download_dir.mkdir(parents=True, exist_ok=True)
     download_dir_str = str(download_dir)
@@ -218,4 +230,4 @@ def local_aria2_path() -> Optional[str]:
 if __name__ == "__main__":
     import uvicorn
 
-    uvicorn.run("main:app", host="localhost", port=8384, reload=True)
+    uvicorn.run("main:app", host="0.0.0.0", port=8384, reload=True)
