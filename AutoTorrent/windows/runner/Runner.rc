@@ -89,13 +89,13 @@ BEGIN
     BEGIN
         BLOCK "040904e4"
         BEGIN
-            VALUE "CompanyName", "com.autotorrent" "\0"
-            VALUE "FileDescription", "auto_torrent" "\0"
+            VALUE "CompanyName", "com.skyforge" "\0"
+            VALUE "FileDescription", "skyforge torrent" "\0"
             VALUE "FileVersion", VERSION_AS_STRING "\0"
-            VALUE "InternalName", "auto_torrent" "\0"
-            VALUE "LegalCopyright", "Copyright (C) 2026 com.autotorrent. All rights reserved." "\0"
+            VALUE "InternalName", "skyforge torrent" "\0"
+            VALUE "LegalCopyright", "Copyright (C) 2026 com.skyforge.torrent. All rights reserved." "\0"
             VALUE "OriginalFilename", "auto_torrent.exe" "\0"
-            VALUE "ProductName", "auto_torrent" "\0"
+            VALUE "ProductName", "skyforge torrent" "\0"
             VALUE "ProductVersion", VERSION_AS_STRING "\0"
         END
     END

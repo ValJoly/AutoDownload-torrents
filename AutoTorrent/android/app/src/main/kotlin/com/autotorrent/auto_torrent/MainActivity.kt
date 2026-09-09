@@ -1,4 +1,4 @@
-package com.autotorrent.auto_torrent
+package com.skyforge.torrent
 
 import io.flutter.embedding.android.FlutterActivity
 
