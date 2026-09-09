@@ -1,0 +1,11 @@
+services:
+  tr4cker-api:
+    container_name: SkyForge
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "8384:8384"
+    env_file:
+      - .env
+    restart: unless-stopped

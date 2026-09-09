@@ -57,6 +57,20 @@ Or run directly:
 python main.py
 ```
 
+### Docker
+
+Build and start the bridge container named `SkyForge`:
+
+```bash
+docker compose up --build -d
+```
+
+Stop it with:
+
+```bash
+docker compose down
+```
+
 ## Exposed endpoints
 - `GET /health` — simple health check.
 - `GET /api/torrents?q={query}&cat={category}` — forward search to TR4CKER. `cat` defaults to `livres-audio`.

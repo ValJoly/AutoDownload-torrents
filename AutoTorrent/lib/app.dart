@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 import 'core/app_keys.dart';
 import 'core/app_router.dart';
 
+const appThemeColor = Color(0xFF5B4BDE);
+
 class AutoTorrentApp extends StatelessWidget {
   const AutoTorrentApp({super.key});
 
@@ -16,7 +18,7 @@ class AutoTorrentApp extends StatelessWidget {
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
         colorScheme: ColorScheme.fromSeed(
-          seedColor: const Color(0xFF5B4BDE),
+          seedColor: appThemeColor,
           brightness: Brightness.light,
         ),
         scaffoldBackgroundColor: background,
@@ -34,7 +36,7 @@ class AutoTorrentApp extends StatelessWidget {
           ),
           focusedBorder: OutlineInputBorder(
             borderRadius: BorderRadius.circular(14),
-            borderSide: const BorderSide(color: Color(0xFF5B4BDE), width: 1.5),
+            borderSide: const BorderSide(color: appThemeColor, width: 1.5),
           ),
         ),
       ),
