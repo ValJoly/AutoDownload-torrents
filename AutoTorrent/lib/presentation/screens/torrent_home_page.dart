@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../core/app_keys.dart';
 import '../../data/api/bridge_api.dart';
@@ -16,11 +17,34 @@ class TorrentHomePage extends StatefulWidget {
 }
 
 class _TorrentHomePageState extends State<TorrentHomePage> {
-  final _bridgeController = TextEditingController(
-    text: 'http://192.168.1.72:8384',
-  );
+  static const _bridgeUrlKey = 'bridge_url';
+  static const _defaultBridgeUrl = 'http://100.94.144.32:8384';
+
+  final _bridgeController = TextEditingController(text: _defaultBridgeUrl);
   final _searchController = TextEditingController();
   String _library = 'audiobooks';
+
+  @override
+  void initState() {
+    super.initState();
+    _loadBridgeUrl();
+  }
+
+  Future<void> _loadBridgeUrl() async {
+    final prefs = await SharedPreferences.getInstance();
+    final stored = prefs.getString(_bridgeUrlKey);
+    final value = (stored == null || stored.trim().isEmpty)
+        ? _defaultBridgeUrl
+        : stored;
+    if (mounted) {
+      _bridgeController.text = value;
+    }
+  }
+
+  Future<void> _saveBridgeUrl(String value) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_bridgeUrlKey, value.trim());
+  }
 
   @override
   void dispose() {
@@ -76,12 +100,15 @@ class _TorrentHomePageState extends State<TorrentHomePage> {
             child: const Text('Cancel'),
           ),
           FilledButton(
-            onPressed: () {
+            onPressed: () async {
               final value = _bridgeController.text.trim();
               if (value.isNotEmpty) {
                 _bridgeController.text = value;
+                await _saveBridgeUrl(value);
               }
-              Navigator.of(dialogContext).pop();
+              if (dialogContext.mounted) {
+                Navigator.of(dialogContext).pop();
+              }
             },
             child: const Text('Save'),
           ),
