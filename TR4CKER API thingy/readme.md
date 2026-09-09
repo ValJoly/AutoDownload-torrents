@@ -1,136 +1,97 @@
-# TR4CKER API bridge
+# SkyForge API Bridge
 
-> A small FastAPI bridge that forwards requests to the public TR4CKER API (https://tr4ker.net/api) and provides convenience endpoints for searching, downloading, and launching torrents.
+A small FastAPI service that forwards search, details, and download requests to the public TR4CKER API and adds a local torrent launch flow for the SkyForge Flutter client.
 
-## What this project does
-- Exposes a lightweight HTTP API that forwards queries to the TR4CKER API using a required API key.
-- Adds convenience endpoints to stream and download `.torrent` files and to launch a torrent client on the host machine.
+## What the service does
 
-## Files
-- `main.py`: FastAPI application and HTTP endpoints.
-- `torrents_classes.py`: Typed dataclasses and helpers for the search/listing response.
-- `torrent_details.py`: Typed dataclass and helpers for the torrent details response.
-- `Doc`: Project documentation and architecture notes.
+This service exposes a compact HTTP layer for the app:
+
+- Forwards TR4CKER search, details, and download requests.
+- Streams `.torrent` files to the client.
+- Stores launch/download job metadata in memory.
+- Starts a local torrent client or `aria2c` when the user triggers launch.
+- Supports dual-stack IPv4/IPv6 listeners when configured.
+
+## Repository layout
+
+- `main.py` — FastAPI app, routes, launch orchestration, and Uvicorn bootstrap.
+- `torrents_classes.py` — typed helpers for torrent search/listing models.
+- `torrent_details.py` — typed helpers for torrent detail responses.
+- `Dockerfile` — container definition for the service.
+- `docker-compose.yml` — Compose file for local deployment.
 
 ## Requirements
-- Python 3.10+
-- Packages: `fastapi`, `uvicorn`, `requests`, `python-dotenv`
+
+- Python 3.11+
+- Packages listed in `requirements.txt`
+- A valid `TR4CKER_API_KEY` in the environment or `.env`
 
 Install dependencies:
 
 ```bash
-python -m pip install fastapi uvicorn requests python-dotenv
+python -m pip install -r requirements.txt
 ```
 
-## Environment
-Create a `.env` file in the project root or set environment variables in your system. The following variables are supported:
+## Environment variables
 
-- `TR4CKER_API_KEY` (required): API key for `tr4ker.net`.
-- `TR4CKER_API_DUAL_STACK` (optional): If `true` (default), the server starts one IPv6 listener and one IPv4 listener in the same process, letting the bridge answer on both families at once.
-- `TR4CKER_API_IPV6_HOST` (optional): IPv6 bind host for the IPv6 listener. Defaults to `::`.
-- `TR4CKER_API_IPV4_HOST` (optional): IPv4 bind host for the IPv4 listener. Defaults to `0.0.0.0`.
-- `TR4CKER_API_HOST` (optional): Single-host override when `TR4CKER_API_DUAL_STACK=false`. Use `0.0.0.0` for IPv4-only or `::` for IPv6-only.
-- `TR4CKER_API_PORT` (optional): TCP port for the Uvicorn server. Defaults to `8384`.
-- `TR4CKER_API_RELOAD` (optional): Toggle Uvicorn reload mode. Defaults to `false` in the dual-stack launcher because reload mode is incompatible with running multiple listeners in the same process.
-- `TORRENT_DOWNLOAD_DIR` (optional): Directory where downloaded torrents will be saved.
-- `TORRENT_LAUNCH_COMMAND` (optional): A shell command with placeholders to launch a torrent, e.g. `"C:\\Program Files\\qBittorrent\\qbittorrent.exe" "{torrent_path}"` or `transmission-gtk "{torrent_path}"`.
-- `TORRENT_CLIENT_COMMAND` (optional): Alternative launch command. If both `TORRENT_LAUNCH_COMMAND` and `TORRENT_CLIENT_COMMAND` are unset, the app will try `aria2c`, `xdg-open`/`open`, or Windows file association.
+Create a `.env` file in the service folder or export the keys in your shell.
 
-Example `.env`:
-
-```
+```env
 TR4CKER_API_KEY=your_api_key_here
-TORRENT_DOWNLOAD_DIR=C:\\Users\\you\\Downloads
+TORRENT_DOWNLOAD_DIR=C:\Users\you\Downloads
 ```
 
-## Running
+Supported variables:
 
-Run with Uvicorn (development):
+- `TR4CKER_API_KEY` — required.
+- `TR4CKER_API_DUAL_STACK` — enable IPv4 and IPv6 listeners together.
+- `TR4CKER_API_IPV6_HOST` — IPv6 bind address for the IPv6 listener.
+- `TR4CKER_API_IPV4_HOST` — IPv4 bind address for the IPv4 listener.
+- `TR4CKER_API_HOST` — single-host override when dual-stack is disabled.
+- `TR4CKER_API_PORT` — service port, default `8384`.
+- `TR4CKER_API_RELOAD` — enable reload mode for development.
+- `TORRENT_DOWNLOAD_DIR` — base path where torrent targets are stored.
+- `TORRENT_LAUNCH_COMMAND` — a custom launch shell command.
+- `TORRENT_CLIENT_COMMAND` — alternative client launch command.
 
-```bash
-uvicorn main:app --host localhost --port 8384 --reload
-```
+## Run locally
 
-Or run directly:
+Use the app directly:
 
 ```bash
 python main.py
 ```
 
-### Docker
+Or run the FastAPI app with Uvicorn:
 
-Build and start the bridge container named `SkyForge`:
+```bash
+uvicorn main:app --host 0.0.0.0 --port 8384 --reload
+```
+
+## Run with Docker
+
+The container can be started with Compose:
 
 ```bash
 docker compose up --build -d
 ```
 
-Stop it with:
+Or directly:
 
 ```bash
-docker compose down
+docker build -t skyforge:latest .
+docker run --name SkyForge -p 8384:8384 --env-file .env -d skyforge:latest
 ```
 
 ## Exposed endpoints
-- `GET /health` — simple health check.
-- `GET /api/torrents?q={query}&cat={category}` — forward search to TR4CKER. `cat` defaults to `livres-audio`.
-- `GET /api/torrents/{slug}` — get torrent details for `slug`.
-- `GET /api/torrents/{slug}/download` — stream the `.torrent` file as an attachment.
-- `POST /api/torrents/{slug}/launch` — download the `.torrent` file and attempt to launch it with a torrent client on the host.
-- `GET /api/downloads/{job_id}` — return the latest in-memory status for a launched download (`running`, `completed`, or `failed`).
 
-## Usage examples
+- `GET /health` — health check.
+- `GET /api/torrents?q={query}&cat={category}` — forward search requests to TR4CKER.
+- `GET /api/torrents/{slug}` — fetch torrent detail metadata.
+- `GET /api/torrents/{slug}/download` — stream the `.torrent` file.
+- `POST /api/torrents/{slug}/launch` — download the `.torrent` file and attempt to launch a local client.
+- `GET /api/downloads/{job_id}` — fetch the latest download job state.
 
-Search (curl):
+## Notes
 
-```bash
-curl "http://localhost:8384/api/torrents?q=some+book&cat=livres-audio"
-```
-
-Download torrent (curl):
-
-```bash
-curl -OJ "http://localhost:8384/api/torrents/some-slug/download"
-```
-
-Launch torrent (server will attempt to start a client):
-
-```bash
-curl -X POST "http://localhost:8384/api/torrents/some-slug/launch"
-```
-
-The launch response includes a `job_id`. Poll that ID while the server-side
-torrent client is running:
-
-```bash
-curl "http://localhost:8384/api/downloads/{job_id}"
-```
-
-Status jobs are kept in memory and reset when the bridge restarts. Progress is
-currently reported as `null`; the app displays an indeterminate progress bar
-until the client exits.
-
-Python example calling the local bridge:
-
-```python
-import requests
-
-resp = requests.get("http://localhost:8384/api/torrents", params={"q": "my search"})
-print(resp.json())
-```
-
-## Implementation notes
-- The helper `request_tr4cker()` centralizes the HTTP request and raises FastAPI `HTTPException` on upstream errors.
-- The `/launch` endpoint will write a temporary `.torrent` file and try these strategies in order: `TORRENT_LAUNCH_COMMAND`, `TORRENT_CLIENT_COMMAND`, `aria2c` (if available), Windows `os.startfile`, or `xdg-open`/`open`.
-- The typed response models in `torrents_classes.py` and `torrent_details.py` are convenience helpers for mapping JSON responses to Python dataclasses.
-
-## Security & legal
-- This project simply forwards requests to TR4CKER and can save and launch torrent files on the host. Ensure you comply with local laws and the TR4CKER API terms of service.
-
-## Next steps / improvements
-- Add tests for the API wrapper.
-- Add proper logging and rate-limiting.
-- Add unit tests around the launch strategies and environment variable handling.
-
----
-See the `Doc` file for more detailed architecture notes and the response data model.
+The Docker image installs the system `aria2` package so Linux containers do not fail when the app falls back to `aria2c` for launching `.torrent` files. A repository-local Windows binary bundle remains available for Windows hosts only.
