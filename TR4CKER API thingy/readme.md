@@ -57,6 +57,7 @@ python main.py
 - `GET /api/torrents/{slug}` — get torrent details for `slug`.
 - `GET /api/torrents/{slug}/download` — stream the `.torrent` file as an attachment.
 - `POST /api/torrents/{slug}/launch` — download the `.torrent` file and attempt to launch it with a torrent client on the host.
+- `GET /api/downloads/{job_id}` — return the latest in-memory status for a launched download (`running`, `completed`, or `failed`).
 
 ## Usage examples
 
@@ -77,6 +78,17 @@ Launch torrent (server will attempt to start a client):
 ```bash
 curl -X POST "http://localhost:8384/api/torrents/some-slug/launch"
 ```
+
+The launch response includes a `job_id`. Poll that ID while the server-side
+torrent client is running:
+
+```bash
+curl "http://localhost:8384/api/downloads/{job_id}"
+```
+
+Status jobs are kept in memory and reset when the bridge restarts. Progress is
+currently reported as `null`; the app displays an indeterminate progress bar
+until the client exits.
 
 Python example calling the local bridge:
 

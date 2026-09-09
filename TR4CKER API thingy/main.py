@@ -6,6 +6,8 @@ import platform
 import shutil
 import subprocess
 import tempfile
+import threading
+import uuid
 from pathlib import Path
 from typing import Any, Dict, Optional
 
@@ -28,12 +30,62 @@ if not API_KEY:
     raise RuntimeError("Missing TR4CKER_API_KEY in environment (.env file).")
 
 app = FastAPI(title="TR4CKER API bridge")
+download_jobs: Dict[str, Dict[str, Any]] = {}
+download_jobs_lock = threading.Lock()
 
 
 class LaunchTorrentBody(BaseModel):
     """Optional launch payload. `library` defaults to `audiobooks` when omitted and chooses between the configured folder targets."""
 
     library: str = "audiobooks"
+
+
+def register_download_job(
+    *,
+    slug: str,
+    info: str,
+    download_dir: str,
+    client: str,
+    process: Optional[subprocess.Popen[Any]],
+) -> Dict[str, Any]:
+    job_id = str(uuid.uuid4())
+    job = {
+        "job_id": job_id,
+        "slug": slug,
+        "info": info,
+        "download_dir": download_dir,
+        "client": client,
+        "status": "running",
+        "progress": None,
+    }
+    with download_jobs_lock:
+        download_jobs[job_id] = job
+
+    if process is not None:
+        threading.Thread(
+            target=monitor_download_job,
+            args=(job_id, process),
+            daemon=True,
+        ).start()
+    return dict(job)
+
+
+def monitor_download_job(job_id: str, process: subprocess.Popen[Any]) -> None:
+    return_code = process.wait()
+    with download_jobs_lock:
+        job = download_jobs.get(job_id)
+        if job is not None:
+            job["status"] = "completed" if return_code == 0 else "failed"
+            job["exit_code"] = return_code
+
+
+@app.get("/api/downloads/{job_id}")
+def get_download_status(job_id: str) -> Dict[str, Any]:
+    with download_jobs_lock:
+        job = download_jobs.get(job_id)
+        if job is None:
+            raise HTTPException(status_code=404, detail="Download job not found.")
+        return dict(job)
 
 
 def tr4cker_headers() -> Dict[str, str]:
@@ -139,36 +191,36 @@ def launch_torrent_download(slug: str, body: Optional[LaunchTorrentBody] = Body(
     if launch_command:
         command = launch_command.format(torrent_path=torrent_path, slug=slug, download_dir=download_dir_str)
         try:
-            subprocess.Popen(command, shell=True, start_new_session=True)
+            process = subprocess.Popen(command, shell=True, start_new_session=True)
         except Exception as exc:
             raise HTTPException(status_code=500, detail=f"Could not launch torrent with TORRENT_LAUNCH_COMMAND: {exc}") from exc
-        return {"status": "started", "slug": slug, "path": torrent_path, "command": command, "info": parsed.name, "download_dir": download_dir_str}
+        return register_download_job(slug=slug, info=parsed.name, download_dir=download_dir_str, client="configured", process=process) | {"path": torrent_path, "command": command}
 
     if client_command:
         command = client_command.format(torrent_path=torrent_path, slug=slug, download_dir=download_dir_str)
         try:
-            subprocess.Popen(command, shell=True, start_new_session=True)
+            process = subprocess.Popen(command, shell=True, start_new_session=True)
         except Exception as exc:
             raise HTTPException(status_code=500, detail=f"Could not launch torrent with TORRENT_CLIENT_COMMAND: {exc}") from exc
-        return {"status": "started", "slug": slug, "path": torrent_path, "command": command, "info": parsed.name, "download_dir": download_dir_str}
+        return register_download_job(slug=slug, info=parsed.name, download_dir=download_dir_str, client="configured", process=process) | {"path": torrent_path, "command": command}
 
     aria2 = local_aria2_path() or shutil.which("aria2c")
     if aria2:
         print(f"Launching torrent with aria2c: {aria2} --seed-time=0 --dir {download_dir_str} {torrent_path}")
         try:
-            subprocess.Popen(
+            process = subprocess.Popen(
                 [aria2, "--seed-time=0", "--dir", download_dir_str, torrent_path],
                 start_new_session=True,
             )
         except Exception as exc:
             raise HTTPException(status_code=500, detail=f"Could not launch aria2c: {exc}") from exc
-        return {"status": "started", "slug": slug, "path": torrent_path, "client": "aria2c", "info": parsed.name, "download_dir": download_dir_str}
+        return register_download_job(slug=slug, info=parsed.name, download_dir=download_dir_str, client="aria2c", process=process) | {"path": torrent_path}
 
     system = platform.system()
     if system == "Windows":
         try:
             os.startfile(torrent_path)  # type: ignore[attr-defined]
-            return {"status": "started", "slug": slug, "path": torrent_path, "client": "default_file_association", "info": parsed.name, "download_dir": download_dir_str}
+            return register_download_job(slug=slug, info=parsed.name, download_dir=download_dir_str, client="default_file_association", process=None) | {"path": torrent_path}
         except Exception as exc:  # pragma: no cover - platform dependent
             raise HTTPException(status_code=500, detail=f"Could not launch torrent file via Windows file association: {exc}") from exc
 
@@ -176,10 +228,10 @@ def launch_torrent_download(slug: str, body: Optional[LaunchTorrentBody] = Body(
     opener_path = shutil.which(opener)
     if opener_path:
         try:
-            subprocess.Popen([opener_path, torrent_path], start_new_session=True)
+            process = subprocess.Popen([opener_path, torrent_path], start_new_session=True)
         except Exception as exc:
             raise HTTPException(status_code=500, detail=f"Could not launch torrent file via {opener}: {exc}") from exc
-        return {"status": "started", "slug": slug, "path": torrent_path, "client": opener, "info": parsed.name, "download_dir": download_dir_str}
+        return register_download_job(slug=slug, info=parsed.name, download_dir=download_dir_str, client=opener, process=process) | {"path": torrent_path}
 
     raise HTTPException(
         status_code=500,

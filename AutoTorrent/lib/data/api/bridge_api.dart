@@ -11,6 +11,37 @@ class BridgeException implements Exception {
   final String message;
 }
 
+class DownloadJob {
+  const DownloadJob({
+    required this.id,
+    required this.status,
+    this.progress,
+  });
+
+  final String id;
+  final String status;
+  final double? progress;
+
+  factory DownloadJob.fromJson(Map<String, dynamic> json) => DownloadJob(
+        id: '${json['job_id'] ?? ''}',
+        status: '${json['status'] ?? 'unknown'}',
+        progress: (json['progress'] as num?)?.toDouble(),
+      );
+
+  String get label {
+    switch (status) {
+      case 'running':
+        return 'Downloading on computer';
+      case 'completed':
+        return 'Download completed';
+      case 'failed':
+        return 'Download failed';
+      default:
+        return 'Starting download';
+    }
+  }
+}
+
 class BridgeApi {
   String _base(String value) => value.trim().replaceFirst(RegExp(r'/$'), '');
 
@@ -57,7 +88,11 @@ class BridgeApi {
     }
   }
 
-  Future<void> launch(String bridgeUrl, String slug, String library) async {
+  Future<DownloadJob> launch(
+    String bridgeUrl,
+    String slug,
+    String library,
+  ) async {
     final uri = Uri.parse('${_base(bridgeUrl)}/api/torrents/$slug/launch');
     final client = http.Client();
     try {
@@ -74,7 +109,11 @@ class BridgeApi {
               const Duration(seconds: 12),
             ),
           );
-      _decode(response);
+      final data = _decode(response);
+      if (data is! Map<String, dynamic>) {
+        throw BridgeException('The bridge returned an unexpected launch response.');
+      }
+      return DownloadJob.fromJson(data);
     } on TimeoutException {
       throw BridgeException(
         'The bridge launch request timed out. Check the bridge address and server.',
@@ -82,6 +121,23 @@ class BridgeApi {
     } finally {
       client.close();
     }
+  }
+
+  Future<DownloadJob> downloadStatus(String bridgeUrl, String jobId) async {
+    final response = await http
+        .get(Uri.parse('${_base(bridgeUrl)}/api/downloads/$jobId'))
+        .timeout(
+          const Duration(seconds: 8),
+          onTimeout: () => throw TimeoutException(
+            'The bridge did not respond in time.',
+            const Duration(seconds: 8),
+          ),
+        );
+    final data = _decode(response);
+    if (data is! Map<String, dynamic>) {
+      throw BridgeException('The bridge returned an unexpected status response.');
+    }
+    return DownloadJob.fromJson(data);
   }
 
   dynamic _decode(http.Response response) {

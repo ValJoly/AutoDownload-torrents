@@ -1,5 +1,8 @@
 import 'package:equatable/equatable.dart';
 
+import '../../data/api/bridge_api.dart';
+import '../../data/models/torrent_item.dart';
+
 abstract class TorrentEvent extends Equatable {
   const TorrentEvent();
 
@@ -34,4 +37,25 @@ class LibraryChanged extends TorrentEvent {
 
   @override
   List<Object?> get props => [library];
+}
+
+class LaunchRequested extends TorrentEvent {
+  const LaunchRequested(this.bridgeUrl, this.torrent, this.library);
+
+  final String bridgeUrl;
+  final TorrentItem torrent;
+  final String library;
+
+  @override
+  List<Object?> get props => [bridgeUrl, torrent, library];
+}
+
+class DownloadStatusRequested extends TorrentEvent {
+  const DownloadStatusRequested(this.bridgeUrl, this.job);
+
+  final String bridgeUrl;
+  final DownloadJob job;
+
+  @override
+  List<Object?> get props => [bridgeUrl, job];
 }

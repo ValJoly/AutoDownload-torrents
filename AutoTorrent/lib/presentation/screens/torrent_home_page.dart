@@ -20,7 +20,6 @@ class _TorrentHomePageState extends State<TorrentHomePage> {
     text: 'http://192.168.1.72:8384',
   );
   final _searchController = TextEditingController();
-  final _api = BridgeApi();
   String _library = 'audiobooks';
 
   @override
@@ -47,27 +46,9 @@ class _TorrentHomePageState extends State<TorrentHomePage> {
   }
 
   Future<void> _launch(TorrentItem torrent) async {
-    try {
-      await _api.launch(_bridgeController.text, torrent.slug, _library);
-      if (!mounted) return;
-      AppKeys.scaffoldMessengerKey.currentState?.showSnackBar(
-        SnackBar(
-          content: Text('Sent "${torrent.name}" to the computer'),
-          behavior: SnackBarBehavior.floating,
-        ),
-      );
-    } catch (error) {
-      if (mounted) {
-        context.read<TorrentBloc>().add(
-          SearchValidationFailed(_friendlyError(error)),
-        );
-      }
-    }
-  }
-
-  String _friendlyError(Object error) {
-    if (error is BridgeException) return error.message;
-    return 'Could not reach the bridge. Check its address and connection.';
+    context.read<TorrentBloc>().add(
+      LaunchRequested(_bridgeController.text, torrent, _library),
+    );
   }
 
   Future<void> _showSettings() async {
@@ -214,6 +195,10 @@ class _TorrentHomePageState extends State<TorrentHomePage> {
                         ],
                       ),
                       const SizedBox(height: 28),
+                      if (state.activeDownload != null) ...[
+                        _DownloadStatusCard(job: state.activeDownload!),
+                        const SizedBox(height: 20),
+                      ],
                       if (state.loading)
                         const Center(
                           child: Padding(
@@ -248,6 +233,60 @@ class _TorrentHomePageState extends State<TorrentHomePage> {
           ),
         );
       },
+    );
+  }
+}
+
+class _DownloadStatusCard extends StatelessWidget {
+  const _DownloadStatusCard({required this.job});
+
+  final DownloadJob job;
+
+  @override
+  Widget build(BuildContext context) {
+    final completed = job.status == 'completed';
+    final failed = job.status == 'failed';
+    final color = failed
+        ? Theme.of(context).colorScheme.error
+        : completed
+        ? Colors.green.shade700
+        : Theme.of(context).colorScheme.primary;
+    return Card(
+      elevation: 0,
+      color: color.withAlpha(22),
+      child: Padding(
+        padding: const EdgeInsets.all(14),
+        child: Row(
+          children: [
+            Icon(
+              failed
+                  ? Icons.error_outline
+                  : completed
+                  ? Icons.check_circle_outline
+                  : Icons.downloading_rounded,
+              color: color,
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(job.label, style: const TextStyle(fontWeight: FontWeight.w700)),
+                  if (!completed && !failed) ...[
+                    const SizedBox(height: 7),
+                    LinearProgressIndicator(
+                      value: job.progress,
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+            if (job.progress != null)
+              Text('${(job.progress! * 100).round()}%'),
+          ],
+        ),
+      ),
     );
   }
 }
