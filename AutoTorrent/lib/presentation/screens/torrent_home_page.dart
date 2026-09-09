@@ -52,7 +52,6 @@ class _TorrentHomePageState extends State<TorrentHomePage> {
   }
 
   Future<void> _showSettings() async {
-    final controller = TextEditingController(text: _bridgeController.text);
     final rootContext = AppKeys.navigatorKey.currentContext;
     if (rootContext == null) {
       return;
@@ -63,7 +62,7 @@ class _TorrentHomePageState extends State<TorrentHomePage> {
       builder: (dialogContext) => AlertDialog(
         title: const Text('Bridge connection'),
         content: TextField(
-          controller: controller,
+          controller: _bridgeController,
           keyboardType: TextInputType.url,
           decoration: const InputDecoration(
             labelText: 'Bridge URL',
@@ -78,8 +77,10 @@ class _TorrentHomePageState extends State<TorrentHomePage> {
           ),
           FilledButton(
             onPressed: () {
-              final value = controller.text.trim();
-              if (value.isNotEmpty) _bridgeController.text = value;
+              final value = _bridgeController.text.trim();
+              if (value.isNotEmpty) {
+                _bridgeController.text = value;
+              }
               Navigator.of(dialogContext).pop();
             },
             child: const Text('Save'),
@@ -87,8 +88,6 @@ class _TorrentHomePageState extends State<TorrentHomePage> {
         ],
       ),
     );
-
-    controller.dispose();
   }
 
   @override
@@ -271,7 +270,10 @@ class _DownloadStatusCard extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(job.label, style: const TextStyle(fontWeight: FontWeight.w700)),
+                  Text(
+                    job.label,
+                    style: const TextStyle(fontWeight: FontWeight.w700),
+                  ),
                   if (!completed && !failed) ...[
                     const SizedBox(height: 7),
                     LinearProgressIndicator(
@@ -282,8 +284,7 @@ class _DownloadStatusCard extends StatelessWidget {
                 ],
               ),
             ),
-            if (job.progress != null)
-              Text('${(job.progress! * 100).round()}%'),
+            if (job.progress != null) Text('${(job.progress! * 100).round()}%'),
           ],
         ),
       ),
