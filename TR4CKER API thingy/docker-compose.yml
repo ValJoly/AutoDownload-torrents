@@ -1,5 +1,6 @@
 services:
-  tr4cker-api:
+  skyforge:
+    image: skyforge:latest
     container_name: SkyForge
     build:
       context: .

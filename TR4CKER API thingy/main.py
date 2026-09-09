@@ -267,12 +267,25 @@ def resolve_download_dir(library: Optional[str] = None) -> Path:
 
 
 def local_aria2_path() -> Optional[str]:
-    """Prefer the workspace-local aria2 bundle included with this repository, if present."""
+    """Prefer a workspace-local aria2 binary only when it matches the current OS.
+
+    The repository ships a Windows-only aria2 bundle. In Linux containers, the
+    service must not prefer that binary because it cannot execute inside Docker.
+    """
     project_root = Path(__file__).resolve().parent
-    candidates = [
-        project_root / "aria2-1.37.0-win-64bit-build1" / "aria2c.exe",
-        project_root / "aria2-1.37.0-win-64bit-build1" / "aria2c",
-    ]
+    system = platform.system()
+
+    if system == "Windows":
+        candidates = [
+            project_root / "aria2-1.37.0-win-64bit-build1" / "aria2c.exe",
+        ]
+    elif system == "Linux":
+        candidates = [
+            project_root / "aria2-1.37.0-win-64bit-build1" / "aria2c",
+        ]
+    else:
+        candidates = []
+
     for candidate in candidates:
         if candidate.exists():
             return str(candidate)

@@ -1,5 +1,9 @@
 FROM python:3.11-slim
 
+LABEL org.opencontainers.image.title="SkyForge" \
+      org.opencontainers.image.description="TR4CKER API bridge for the SkyForge AutoTorrent app" \
+      org.opencontainers.image.name="skyforge"
+
 WORKDIR /app
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
@@ -9,6 +13,9 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     TR4CKER_API_IPV4_HOST=0.0.0.0 \
     TR4CKER_API_PORT=8384 \
     TR4CKER_API_RELOAD=false
+
+RUN apt-get update && apt-get install -y --no-install-recommends aria2 && \
+    rm -rf /var/lib/apt/lists/*
 
 COPY requirements.txt ./requirements.txt
 RUN python -m pip install --upgrade pip && \
