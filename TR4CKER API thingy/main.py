@@ -282,4 +282,13 @@ def local_aria2_path() -> Optional[str]:
 if __name__ == "__main__":
     import uvicorn
 
-    uvicorn.run("main:app", host="0.0.0.0", port=8384, reload=True)
+    host = os.getenv("TR4CKER_API_HOST", "::")
+    port = int(os.getenv("TR4CKER_API_PORT", "8384"))
+    reload_enabled = os.getenv("TR4CKER_API_RELOAD", "true").lower() in {
+        "1",
+        "true",
+        "yes",
+        "on",
+    }
+
+    uvicorn.run("main:app", host=host, port=port, reload=reload_enabled)

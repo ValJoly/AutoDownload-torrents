@@ -26,6 +26,9 @@ python -m pip install fastapi uvicorn requests python-dotenv
 Create a `.env` file in the project root or set environment variables in your system. The following variables are supported:
 
 - `TR4CKER_API_KEY` (required): API key for `tr4ker.net`.
+- `TR4CKER_API_HOST` (optional): Bind host for the Uvicorn server. Defaults to `::` so the API can accept IPv6-capable socket access and dual-stack sockets where supported.
+- `TR4CKER_API_PORT` (optional): TCP port for the Uvicorn server. Defaults to `8384`.
+- `TR4CKER_API_RELOAD` (optional): Toggle Uvicorn reload mode. Defaults to `true` in development.
 - `TORRENT_DOWNLOAD_DIR` (optional): Directory where downloaded torrents will be saved.
 - `TORRENT_LAUNCH_COMMAND` (optional): A shell command with placeholders to launch a torrent, e.g. `"C:\\Program Files\\qBittorrent\\qbittorrent.exe" "{torrent_path}"` or `transmission-gtk "{torrent_path}"`.
 - `TORRENT_CLIENT_COMMAND` (optional): Alternative launch command. If both `TORRENT_LAUNCH_COMMAND` and `TORRENT_CLIENT_COMMAND` are unset, the app will try `aria2c`, `xdg-open`/`open`, or Windows file association.
