@@ -1,0 +1,99 @@
+import 'dart:async';
+import 'dart:convert';
+
+import 'package:http/http.dart' as http;
+
+import '../models/torrent_item.dart';
+
+class BridgeException implements Exception {
+  BridgeException(this.message);
+
+  final String message;
+}
+
+class BridgeApi {
+  String _base(String value) => value.trim().replaceFirst(RegExp(r'/$'), '');
+
+  String _categoryForLibrary(String library) {
+    return library == 'books' ? 'livres' : 'livres-audio';
+  }
+
+  Future<List<TorrentItem>> search(
+    String bridgeUrl,
+    String query,
+    String library,
+  ) async {
+    final uri = Uri.parse('${_base(bridgeUrl)}/api/torrents').replace(
+      queryParameters: {'q': query, 'cat': _categoryForLibrary(library)},
+    );
+    final client = http.Client();
+    try {
+      final response = await client
+          .get(uri)
+          .timeout(
+            const Duration(seconds: 12),
+            onTimeout: () => throw TimeoutException(
+              'The bridge did not respond in time.',
+              const Duration(seconds: 12),
+            ),
+          );
+      final data = _decode(response);
+      final list = data is Map<String, dynamic> ? data['torrents'] : data;
+      if (list is! List) {
+        throw BridgeException(
+          'The bridge returned an unexpected search response.',
+        );
+      }
+      return list
+          .whereType<Map<String, dynamic>>()
+          .map(TorrentItem.fromJson)
+          .toList();
+    } on TimeoutException {
+      throw BridgeException(
+        'The bridge search timed out. Check the bridge address and server.',
+      );
+    } finally {
+      client.close();
+    }
+  }
+
+  Future<void> launch(String bridgeUrl, String slug, String library) async {
+    final uri = Uri.parse('${_base(bridgeUrl)}/api/torrents/$slug/launch');
+    final client = http.Client();
+    try {
+      final response = await client
+          .post(
+            uri,
+            headers: {'Content-Type': 'application/json'},
+            body: jsonEncode({'library': library}),
+          )
+          .timeout(
+            const Duration(seconds: 12),
+            onTimeout: () => throw TimeoutException(
+              'The bridge did not respond in time.',
+              const Duration(seconds: 12),
+            ),
+          );
+      _decode(response);
+    } on TimeoutException {
+      throw BridgeException(
+        'The bridge launch request timed out. Check the bridge address and server.',
+      );
+    } finally {
+      client.close();
+    }
+  }
+
+  dynamic _decode(http.Response response) {
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      throw BridgeException(
+        'Bridge error (${response.statusCode}). Check the bridge logs.',
+      );
+    }
+    try {
+      return jsonDecode(response.body);
+    } on FormatException {
+      throw BridgeException('The bridge returned invalid JSON.');
+    }
+  }
+}
