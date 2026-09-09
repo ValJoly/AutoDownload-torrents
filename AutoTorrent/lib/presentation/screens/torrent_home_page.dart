@@ -201,7 +201,25 @@ class _TorrentHomePageState extends State<TorrentHomePage> {
                           ),
                           const SizedBox(width: 8),
                           ChoiceChip(
-                            label: const Text('Audiobooks'),
+                            selectedColor: theme.colorScheme.primary,
+                            backgroundColor: Colors.transparent,
+                            side: BorderSide(
+                              color: state.library == 'audiobooks'
+                                  ? Colors.transparent
+                                  : Color(0xFFEAA4BD),
+                              width: 1,
+                            ),
+                            label: Text(
+                              'Audiobooks',
+                              style: TextStyle(
+                                color: state.library == 'audiobooks'
+                                    ? Colors.white
+                                    : Colors.black87,
+                                fontWeight: state.library == 'audiobooks'
+                                    ? FontWeight.w700
+                                    : FontWeight.w500,
+                              ),
+                            ),
                             selected: state.library == 'audiobooks',
                             onSelected: (_) {
                               setState(() => _library = 'audiobooks');
@@ -212,7 +230,25 @@ class _TorrentHomePageState extends State<TorrentHomePage> {
                           ),
                           const SizedBox(width: 8),
                           ChoiceChip(
-                            label: const Text('Books'),
+                            selectedColor: theme.colorScheme.primary,
+                            backgroundColor: Colors.transparent,
+                            side: BorderSide(
+                              color: state.library == 'books'
+                                  ? Colors.transparent
+                                  : Color(0xFFEAA4BD),
+                              width: 1,
+                            ),
+                            label: Text(
+                              'Books',
+                              style: TextStyle(
+                                color: state.library == 'books'
+                                    ? Colors.white
+                                    : Colors.black87,
+                                fontWeight: state.library == 'books'
+                                    ? FontWeight.w700
+                                    : FontWeight.w500,
+                              ),
+                            ),
                             selected: state.library == 'books',
                             onSelected: (_) {
                               setState(() => _library = 'books');
