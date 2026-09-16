@@ -11,14 +11,28 @@ abstract class TorrentEvent extends Equatable {
 }
 
 class SearchRequested extends TorrentEvent {
-  const SearchRequested(this.bridgeUrl, this.query, this.library);
+  const SearchRequested(
+    this.bridgeUrl,
+    this.query,
+    this.library,
+    this.username,
+    this.password,
+  );
 
   final String bridgeUrl;
   final String query;
   final String library;
+  final String username;
+  final String password;
 
   @override
-  List<Object?> get props => [bridgeUrl, query, library];
+  List<Object?> get props => [
+    bridgeUrl,
+    query,
+    library,
+    username,
+    password,
+  ];
 }
 
 class SearchValidationFailed extends TorrentEvent {
@@ -59,11 +73,18 @@ class LaunchRequested extends TorrentEvent {
 }
 
 class DownloadStatusRequested extends TorrentEvent {
-  const DownloadStatusRequested(this.bridgeUrl, this.job);
+  const DownloadStatusRequested(
+    this.bridgeUrl,
+    this.job,
+    this.username,
+    this.password,
+  );
 
   final String bridgeUrl;
   final DownloadJob job;
+  final String username;
+  final String password;
 
   @override
-  List<Object?> get props => [bridgeUrl, job];
+  List<Object?> get props => [bridgeUrl, job, username, password];
 }

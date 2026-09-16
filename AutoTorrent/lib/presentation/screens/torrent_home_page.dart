@@ -88,7 +88,13 @@ class _TorrentHomePageState extends State<TorrentHomePage> {
     }
 
     context.read<TorrentBloc>().add(
-      SearchRequested(_bridgeController.text, query, _library),
+      SearchRequested(
+        _bridgeController.text,
+        query,
+        _library,
+        _usernameController.text,
+        _passwordController.text,
+      ),
     );
   }
 

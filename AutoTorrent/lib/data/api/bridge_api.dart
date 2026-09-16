@@ -49,6 +49,8 @@ class BridgeApi {
     String bridgeUrl,
     String query,
     String library,
+    String username,
+    String password,
   ) async {
     final uri = Uri.parse('${_base(bridgeUrl)}/api/torrents').replace(
       queryParameters: {'q': query, 'cat': _categoryForLibrary(library)},
@@ -56,7 +58,7 @@ class BridgeApi {
     final client = http.Client();
     try {
       final response = await client
-          .get(uri)
+          .get(uri, headers: _authHeaders(username, password))
           .timeout(
             const Duration(seconds: 12),
             onTimeout: () => throw TimeoutException(
@@ -94,13 +96,12 @@ class BridgeApi {
     final uri = Uri.parse('${_base(bridgeUrl)}/api/torrents/$slug/launch');
     final client = http.Client();
     try {
-      final basicAuth = base64.encode(utf8.encode('$username:$password'));
       final response = await client
           .post(
             uri,
             headers: {
               'Content-Type': 'application/json',
-              'Authorization': 'Basic $basicAuth',
+              ..._authHeaders(username, password),
             },
             body: jsonEncode({'library': library}),
           )
@@ -127,9 +128,17 @@ class BridgeApi {
     }
   }
 
-  Future<DownloadJob> downloadStatus(String bridgeUrl, String jobId) async {
+  Future<DownloadJob> downloadStatus(
+    String bridgeUrl,
+    String jobId,
+    String username,
+    String password,
+  ) async {
     final response = await http
-        .get(Uri.parse('${_base(bridgeUrl)}/api/downloads/$jobId'))
+        .get(
+          Uri.parse('${_base(bridgeUrl)}/api/downloads/$jobId'),
+          headers: _authHeaders(username, password),
+        )
         .timeout(
           const Duration(seconds: 8),
           onTimeout: () => throw TimeoutException(
@@ -144,6 +153,13 @@ class BridgeApi {
       );
     }
     return DownloadJob.fromJson(data);
+  }
+
+  Map<String, String> _authHeaders(String username, String password) {
+    final basicAuth = base64.encode(
+      utf8.encode('${username.trim()}:${password.trim()}'),
+    );
+    return {'Authorization': 'Basic $basicAuth'};
   }
 
   dynamic _decode(http.Response response) {

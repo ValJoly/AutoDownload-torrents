@@ -22,7 +22,7 @@ from torrentool.api import Torrent
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("tr4cker_bridge")
 
-load_dotenv()
+load_dotenv(Path(__file__).with_name(".env"))
 
 API_BASE_URL = "https://tr4ker.net/api"
 API_KEY = os.getenv("TR4CKER_API_KEY")

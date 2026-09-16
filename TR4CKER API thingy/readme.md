@@ -59,11 +59,11 @@ Supported variables:
 - `TORRENT_HOST_DOWNLOAD_DIR` — Windows host folder mounted as `/downloads` in Docker; defaults to `I:/Books`.
 - `TORRENT_LAUNCH_COMMAND` — a custom launch shell command.
 - `TORRENT_CLIENT_COMMAND` — alternative client launch command.
-- `SKYFORGE_AUTH_ENABLED` — enable HTTP Basic authentication gate for the launch route.
-- `SKYFORGE_AUTH_USERNAME` — username field expected by the launch endpoint.
-- `SKYFORGE_AUTH_PASSWORD` — password field expected by the launch endpoint.
+- `SKYFORGE_AUTH_ENABLED` — enable HTTP Basic authentication for the API routes.
+- `SKYFORGE_AUTH_USERNAME` — username expected by the API routes.
+- `SKYFORGE_AUTH_PASSWORD` — password expected by the API routes.
 
-The app settings page should carry the same username and password pair. The bridge client sends them as an `Authorization: Basic base64(username:password)` header on the launch request.
+The app settings page should carry the same username and password pair. The bridge client sends them as an `Authorization: Basic base64(username:password)` header on every protected API request.
 
 ## Run locally
 

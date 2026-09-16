@@ -28,6 +28,8 @@ class TorrentBloc extends Bloc<TorrentEvent, TorrentState> {
         event.bridgeUrl,
         event.query,
         event.library,
+        event.username,
+        event.password,
       );
       emit(state.copyWith(loading: false, results: results, error: null));
     } catch (error) {
@@ -68,7 +70,14 @@ class TorrentBloc extends Bloc<TorrentEvent, TorrentState> {
       emit(state.copyWith(error: null, activeDownload: job));
       _statusTimer?.cancel();
       _statusTimer = Timer.periodic(const Duration(seconds: 3), (_) {
-        add(DownloadStatusRequested(event.bridgeUrl, job));
+        add(
+          DownloadStatusRequested(
+            event.bridgeUrl,
+            job,
+            event.username,
+            event.password,
+          ),
+        );
       });
     } catch (error) {
       emit(
@@ -86,7 +95,12 @@ class TorrentBloc extends Bloc<TorrentEvent, TorrentState> {
     Emitter<TorrentState> emit,
   ) async {
     try {
-      final job = await _api.downloadStatus(event.bridgeUrl, event.job.id);
+      final job = await _api.downloadStatus(
+        event.bridgeUrl,
+        event.job.id,
+        event.username,
+        event.password,
+      );
       emit(state.copyWith(activeDownload: job));
       if (job.status == 'completed' || job.status == 'failed') {
         _statusTimer?.cancel();
