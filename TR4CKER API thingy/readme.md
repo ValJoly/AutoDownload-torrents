@@ -39,6 +39,11 @@ Create a `.env` file in the service folder or export the keys in your shell.
 ```env
 TR4CKER_API_KEY=your_api_key_here
 TORRENT_DOWNLOAD_DIR=C:\Users\you\Downloads
+# Used only by Docker Compose; this is the Windows folder shared with the container.
+TORRENT_HOST_DOWNLOAD_DIR=I:/Books
+SKYFORGE_AUTH_ENABLED=true
+SKYFORGE_AUTH_USERNAME=skyforge
+SKYFORGE_AUTH_PASSWORD=change-me
 ```
 
 Supported variables:
@@ -51,8 +56,14 @@ Supported variables:
 - `TR4CKER_API_PORT` — service port, default `8384`.
 - `TR4CKER_API_RELOAD` — enable reload mode for development.
 - `TORRENT_DOWNLOAD_DIR` — base path where torrent targets are stored.
+- `TORRENT_HOST_DOWNLOAD_DIR` — Windows host folder mounted as `/downloads` in Docker; defaults to `I:/Books`.
 - `TORRENT_LAUNCH_COMMAND` — a custom launch shell command.
 - `TORRENT_CLIENT_COMMAND` — alternative client launch command.
+- `SKYFORGE_AUTH_ENABLED` — enable HTTP Basic authentication gate for the launch route.
+- `SKYFORGE_AUTH_USERNAME` — username field expected by the launch endpoint.
+- `SKYFORGE_AUTH_PASSWORD` — password field expected by the launch endpoint.
+
+The app settings page should carry the same username and password pair. The bridge client sends them as an `Authorization: Basic base64(username:password)` header on the launch request.
 
 ## Run locally
 
@@ -76,11 +87,21 @@ The container can be started with Compose:
 docker compose up --build -d
 ```
 
+Compose mounts `I:\Books` to `/downloads` and overrides the container's
+`TORRENT_DOWNLOAD_DIR` to `/downloads`. The existing library layout is
+preserved, so downloads are written to `I:\Books\Books` or
+`I:\Books\Audiobooks`. Set `TORRENT_HOST_DOWNLOAD_DIR` in the Compose
+environment if the host folder is different. Docker Desktop must be allowed
+to access the drive.
+
 Or directly:
 
 ```bash
 docker build -t skyforge:latest .
-docker run --name SkyForge -p 8384:8384 --env-file .env -d skyforge:latest
+docker run --name SkyForge -p 8384:8384 \
+  -v "I:/Books:/downloads" \
+  -e TORRENT_DOWNLOAD_DIR=/downloads \
+  --env-file .env -d skyforge:latest
 ```
 
 ## Exposed endpoints
@@ -89,7 +110,7 @@ docker run --name SkyForge -p 8384:8384 --env-file .env -d skyforge:latest
 - `GET /api/torrents?q={query}&cat={category}` — forward search requests to TR4CKER.
 - `GET /api/torrents/{slug}` — fetch torrent detail metadata.
 - `GET /api/torrents/{slug}/download` — stream the `.torrent` file.
-- `POST /api/torrents/{slug}/launch` — download the `.torrent` file and attempt to launch a local client.
+- `POST /api/torrents/{slug}/launch` — download the `.torrent` file and attempt to launch a local client. This route is protected by the configured Basic Auth username/password pair in `SKYFORGE_AUTH_USERNAME` and `SKYFORGE_AUTH_PASSWORD`.
 - `GET /api/downloads/{job_id}` — fetch the latest download job state.
 
 ## Notes

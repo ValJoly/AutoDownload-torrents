@@ -40,14 +40,22 @@ class LibraryChanged extends TorrentEvent {
 }
 
 class LaunchRequested extends TorrentEvent {
-  const LaunchRequested(this.bridgeUrl, this.torrent, this.library);
+  const LaunchRequested(
+    this.bridgeUrl,
+    this.torrent,
+    this.library,
+    this.username,
+    this.password,
+  );
 
   final String bridgeUrl;
   final TorrentItem torrent;
   final String library;
+  final String username;
+  final String password;
 
   @override
-  List<Object?> get props => [bridgeUrl, torrent, library];
+  List<Object?> get props => [bridgeUrl, torrent, library, username, password];
 }
 
 class DownloadStatusRequested extends TorrentEvent {

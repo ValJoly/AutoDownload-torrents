@@ -1,4 +1,5 @@
 import 'package:flutter_bloc/flutter_bloc.dart';
+
 import 'dart:async';
 
 import '../../data/api/bridge_api.dart';
@@ -61,6 +62,8 @@ class TorrentBloc extends Bloc<TorrentEvent, TorrentState> {
         event.bridgeUrl,
         event.torrent.slug,
         event.library,
+        event.username,
+        event.password,
       );
       emit(state.copyWith(error: null, activeDownload: job));
       _statusTimer?.cancel();

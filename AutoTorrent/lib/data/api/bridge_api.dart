@@ -12,21 +12,17 @@ class BridgeException implements Exception {
 }
 
 class DownloadJob {
-  const DownloadJob({
-    required this.id,
-    required this.status,
-    this.progress,
-  });
+  const DownloadJob({required this.id, required this.status, this.progress});
 
   final String id;
   final String status;
   final double? progress;
 
   factory DownloadJob.fromJson(Map<String, dynamic> json) => DownloadJob(
-        id: '${json['job_id'] ?? ''}',
-        status: '${json['status'] ?? 'unknown'}',
-        progress: (json['progress'] as num?)?.toDouble(),
-      );
+    id: '${json['job_id'] ?? ''}',
+    status: '${json['status'] ?? 'unknown'}',
+    progress: (json['progress'] as num?)?.toDouble(),
+  );
 
   String get label {
     switch (status) {
@@ -92,14 +88,20 @@ class BridgeApi {
     String bridgeUrl,
     String slug,
     String library,
+    String username,
+    String password,
   ) async {
     final uri = Uri.parse('${_base(bridgeUrl)}/api/torrents/$slug/launch');
     final client = http.Client();
     try {
+      final basicAuth = base64.encode(utf8.encode('$username:$password'));
       final response = await client
           .post(
             uri,
-            headers: {'Content-Type': 'application/json'},
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': 'Basic $basicAuth',
+            },
             body: jsonEncode({'library': library}),
           )
           .timeout(
@@ -111,7 +113,9 @@ class BridgeApi {
           );
       final data = _decode(response);
       if (data is! Map<String, dynamic>) {
-        throw BridgeException('The bridge returned an unexpected launch response.');
+        throw BridgeException(
+          'The bridge returned an unexpected launch response.',
+        );
       }
       return DownloadJob.fromJson(data);
     } on TimeoutException {
@@ -135,7 +139,9 @@ class BridgeApi {
         );
     final data = _decode(response);
     if (data is! Map<String, dynamic>) {
-      throw BridgeException('The bridge returned an unexpected status response.');
+      throw BridgeException(
+        'The bridge returned an unexpected status response.',
+      );
     }
     return DownloadJob.fromJson(data);
   }

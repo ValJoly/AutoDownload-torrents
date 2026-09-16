@@ -218,6 +218,13 @@
     }
   },
   "components": {
+    "securitySchemes": {
+      "basicAuth": {
+        "type": "http",
+        "scheme": "basic",
+        "description": "HTTP Basic credentials configured via SKYFORGE_AUTH_USERNAME and SKYFORGE_AUTH_PASSWORD on the bridge server."
+      }
+    },
     "schemas": {
       "HTTPValidationError": {
         "properties": {

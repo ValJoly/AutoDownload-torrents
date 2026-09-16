@@ -13,8 +13,9 @@ from typing import Any, Dict, Optional
 
 import requests
 from dotenv import load_dotenv
-from fastapi import Body, FastAPI, HTTPException, Query, Response
+from fastapi import Body, Depends, FastAPI, HTTPException, Query, Response
 from fastapi.responses import StreamingResponse
+from fastapi.security import HTTPBasic, HTTPBasicCredentials
 from pydantic import BaseModel
 from torrentool.api import Torrent
 
@@ -32,6 +33,33 @@ if not API_KEY:
 app = FastAPI(title="TR4CKER API bridge")
 download_jobs: Dict[str, Dict[str, Any]] = {}
 download_jobs_lock = threading.Lock()
+security = HTTPBasic(auto_error=False)
+
+AUTH_ENABLED = os.getenv("SKYFORGE_AUTH_ENABLED", "true").lower() in {
+    "1",
+    "true",
+    "yes",
+    "on",
+}
+AUTH_USERNAME = os.getenv("SKYFORGE_AUTH_USERNAME", "skyforge")
+AUTH_PASSWORD = os.getenv("SKYFORGE_AUTH_PASSWORD", "skyforge")
+
+
+def require_api_credentials(
+    credentials: Optional[HTTPBasicCredentials] = Depends(security),
+) -> None:
+    if not AUTH_ENABLED:
+        return
+    if credentials is None:
+        raise HTTPException(
+            status_code=401,
+            detail="Authentication required.",
+        )
+    if credentials.username != AUTH_USERNAME or credentials.password != AUTH_PASSWORD:
+        raise HTTPException(
+            status_code=401,
+            detail="Invalid or missing launch credentials.",
+        )
 
 
 class LaunchTorrentBody(BaseModel):
@@ -80,7 +108,10 @@ def monitor_download_job(job_id: str, process: subprocess.Popen[Any]) -> None:
 
 
 @app.get("/api/downloads/{job_id}")
-def get_download_status(job_id: str) -> Dict[str, Any]:
+def get_download_status(
+    job_id: str,
+    _credentials: Optional[HTTPBasicCredentials] = Depends(require_api_credentials),
+) -> Dict[str, Any]:
     with download_jobs_lock:
         job = download_jobs.get(job_id)
         if job is None:
@@ -118,6 +149,7 @@ def health() -> Dict[str, str]:
 def search_torrents(
     q: str = Query(..., description="Search query"),
     cat: str = Query("livres-audio", description="Category to search in"),
+    _credentials: Optional[HTTPBasicCredentials] = Depends(require_api_credentials),
     # page: int = Query(1, ge=1),
 ) -> Any:
     """Search Torrents from TR4CKER.
@@ -135,13 +167,19 @@ def search_torrents(
 
 
 @app.get("/api/torrents/{slug}")
-def get_torrent_details(slug: str) -> Any:
+def get_torrent_details(
+    slug: str,
+    _credentials: Optional[HTTPBasicCredentials] = Depends(require_api_credentials),
+) -> Any:
     response = request_tr4cker(f"{API_BASE_URL}/torrents/{slug}")
     return response.json()
 
 
 @app.get("/api/torrents/{slug}/download")
-def download_torrent(slug: str) -> StreamingResponse:
+def download_torrent(
+    slug: str,
+    _credentials: Optional[HTTPBasicCredentials] = Depends(require_api_credentials),
+) -> StreamingResponse:
     response = request_tr4cker(f"{API_BASE_URL}/torrents/{slug}/download", stream=True)
 
     content_type = response.headers.get("Content-Type", "application/octet-stream")
@@ -154,12 +192,20 @@ def download_torrent(slug: str) -> StreamingResponse:
 
 
 @app.post("/api/torrents/{slug}/launch")
-def launch_torrent_download(slug: str, body: Optional[LaunchTorrentBody] = Body(default=None)) -> Dict[str, Any]:
+def launch_torrent_download(
+    slug: str,
+    body: Optional[LaunchTorrentBody] = Body(default=None),
+    _credentials: Optional[HTTPBasicCredentials] = Depends(require_api_credentials),
+) -> Dict[str, Any]:
     """Download a .torrent file, validate it with torrentool, then launch it through a configured or discovered client.
 
     Optional body parameter: `library` can be `audiobooks` (default) or `books`.
     The chosen branch is appended to `TORRENT_DOWNLOAD_DIR`, where `AUDIOBOOKS` and `BOOKS`
     point to the environment-relative folders such as `'\\Audiobooks'` and `'\\Books'`.
+
+    Launching a torrent is protected with HTTP Basic authentication. Configure the
+    same username/password pair in the Flutter app settings and on the server using
+    `SKYFORGE_AUTH_USERNAME` and `SKYFORGE_AUTH_PASSWORD`.
     """
     library_value = body.library if body else "audiobooks"
     logger.info("Incoming launch request: slug=%s library=%s", slug, library_value)

@@ -9,4 +9,10 @@ services:
       - "8384:8384"
     env_file:
       - .env
+    environment:
+      # The host path is mounted at /downloads; the app then creates the
+      # configured Books and Audiobooks child folders beneath it.
+      TORRENT_DOWNLOAD_DIR: /downloads
+    volumes:
+      - "${TORRENT_HOST_DOWNLOAD_DIR:-I:/Books}:/downloads"
     restart: unless-stopped

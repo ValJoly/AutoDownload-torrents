@@ -23,6 +23,8 @@ Environment variables
 ---------------------
 - `TR4CKER_API_KEY` - required. If missing the application raises on startup.
 - `TORRENT_DOWNLOAD_DIR` - optional. Directory used when launching clients that need a download directory.
+- `SKYFORGE_AUTH_ENABLED` - optional. Turn HTTP Basic auth on or off for the protected launch route.
+- `SKYFORGE_AUTH_USERNAME` and `SKYFORGE_AUTH_PASSWORD` - optional but recommended. These define the Basic Auth pair that must match the credentials typed in the Flutter settings dialog and sent by the bridge client. If you do not want auth then disable this via `SKYFORGE_AUTH_ENABLED=false`.
 - `TORRENT_LAUNCH_COMMAND` / `TORRENT_CLIENT_COMMAND` - optional. Commands may use placeholders:
 	- `{torrent_path}` — full path to the downloaded `.torrent` file
 	- `{slug}` — the torrent slug

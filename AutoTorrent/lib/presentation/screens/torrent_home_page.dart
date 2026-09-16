@@ -18,9 +18,13 @@ class TorrentHomePage extends StatefulWidget {
 
 class _TorrentHomePageState extends State<TorrentHomePage> {
   static const _bridgeUrlKey = 'bridge_url';
+  static const _usernameKey = 'bridge_username';
+  static const _passwordKey = 'bridge_password';
   static const _defaultBridgeUrl = 'http://100.94.144.32:8384';
 
   final _bridgeController = TextEditingController(text: _defaultBridgeUrl);
+  final _usernameController = TextEditingController();
+  final _passwordController = TextEditingController();
   final _searchController = TextEditingController();
   String _library = 'audiobooks';
 
@@ -28,6 +32,7 @@ class _TorrentHomePageState extends State<TorrentHomePage> {
   void initState() {
     super.initState();
     _loadBridgeUrl();
+    _loadCredentials();
   }
 
   Future<void> _loadBridgeUrl() async {
@@ -41,14 +46,32 @@ class _TorrentHomePageState extends State<TorrentHomePage> {
     }
   }
 
+  Future<void> _loadCredentials() async {
+    final prefs = await SharedPreferences.getInstance();
+    final username = prefs.getString(_usernameKey) ?? '';
+    final password = prefs.getString(_passwordKey) ?? '';
+    if (mounted) {
+      _usernameController.text = username;
+      _passwordController.text = password;
+    }
+  }
+
   Future<void> _saveBridgeUrl(String value) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(_bridgeUrlKey, value.trim());
   }
 
+  Future<void> _saveCredentials(String username, String password) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_usernameKey, username.trim());
+    await prefs.setString(_passwordKey, password.trim());
+  }
+
   @override
   void dispose() {
     _bridgeController.dispose();
+    _usernameController.dispose();
+    _passwordController.dispose();
     _searchController.dispose();
     super.dispose();
   }
@@ -71,7 +94,13 @@ class _TorrentHomePageState extends State<TorrentHomePage> {
 
   Future<void> _launch(TorrentItem torrent) async {
     context.read<TorrentBloc>().add(
-      LaunchRequested(_bridgeController.text, torrent, _library),
+      LaunchRequested(
+        _bridgeController.text,
+        torrent,
+        _library,
+        _usernameController.text,
+        _passwordController.text,
+      ),
     );
   }
 
@@ -85,13 +114,40 @@ class _TorrentHomePageState extends State<TorrentHomePage> {
       context: rootContext,
       builder: (dialogContext) => AlertDialog(
         title: const Text('Bridge connection'),
-        content: TextField(
-          controller: _bridgeController,
-          keyboardType: TextInputType.url,
-          decoration: const InputDecoration(
-            labelText: 'Bridge URL',
-            hintText: 'http://192.168.1.72:8384',
-            prefixIcon: Icon(Icons.link),
+        content: SizedBox(
+          width: 420,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                controller: _bridgeController,
+                keyboardType: TextInputType.url,
+                decoration: const InputDecoration(
+                  labelText: 'Bridge URL',
+                  hintText: 'http://192.168.1.72:8384',
+                  prefixIcon: Icon(Icons.link),
+                ),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: _usernameController,
+                decoration: const InputDecoration(
+                  labelText: 'Username / ID',
+                  hintText: 'skyforge-user',
+                  prefixIcon: Icon(Icons.person),
+                ),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: _passwordController,
+                obscureText: true,
+                decoration: const InputDecoration(
+                  labelText: 'Password',
+                  hintText: '••••••••',
+                  prefixIcon: Icon(Icons.lock),
+                ),
+              ),
+            ],
           ),
         ),
         actions: [
@@ -106,6 +162,10 @@ class _TorrentHomePageState extends State<TorrentHomePage> {
                 _bridgeController.text = value;
                 await _saveBridgeUrl(value);
               }
+              await _saveCredentials(
+                _usernameController.text,
+                _passwordController.text,
+              );
               if (dialogContext.mounted) {
                 Navigator.of(dialogContext).pop();
               }
