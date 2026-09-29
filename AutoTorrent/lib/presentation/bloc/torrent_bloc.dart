@@ -66,6 +66,17 @@ class TorrentBloc extends Bloc<TorrentEvent, TorrentState> {
     LaunchRequested event,
     Emitter<TorrentState> emit,
   ) async {
+    emit(
+      state.copyWith(
+        error: null,
+        activeDownload: const DownloadJob(
+          id: '',
+          status: 'preparing',
+          phase: 'preparing',
+          message: 'Contacting the bridge to prepare the torrent.',
+        ),
+      ),
+    );
     try {
       final job = await _api.launch(
         event.bridgeUrl,
@@ -75,6 +86,7 @@ class TorrentBloc extends Bloc<TorrentEvent, TorrentState> {
       );
       emit(state.copyWith(error: null, activeDownload: job));
       _statusTimer?.cancel();
+      add(DownloadStatusRequested(event.bridgeUrl, job, event.sessionToken));
       _statusTimer = Timer.periodic(const Duration(seconds: 3), (_) {
         add(DownloadStatusRequested(event.bridgeUrl, job, event.sessionToken));
       });
@@ -82,6 +94,14 @@ class TorrentBloc extends Bloc<TorrentEvent, TorrentState> {
       await _invalidateUnauthorized(error);
       emit(
         state.copyWith(
+          activeDownload: DownloadJob(
+            id: '',
+            status: 'failed',
+            phase: 'failed',
+            message: error is BridgeException
+                ? error.message
+                : 'Could not start the download on the computer.',
+          ),
           error: error is BridgeException
               ? error.message
               : 'Could not start the download on the computer.',
@@ -101,7 +121,12 @@ class TorrentBloc extends Bloc<TorrentEvent, TorrentState> {
         event.sessionToken,
       );
       emit(state.copyWith(activeDownload: job));
-      if (job.status == 'completed' || job.status == 'failed') {
+      if ({
+        'completed',
+        'failed',
+        'handed_off',
+        'unknown',
+      }.contains(job.status)) {
         _statusTimer?.cancel();
       }
     } catch (error) {

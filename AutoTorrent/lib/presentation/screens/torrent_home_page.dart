@@ -280,6 +280,11 @@ class _DownloadStatusCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final completed = job.status == 'completed';
     final failed = job.status == 'failed';
+    final terminal =
+        completed ||
+        failed ||
+        job.status == 'handed_off' ||
+        job.status == 'unknown';
     final color = failed
         ? Theme.of(context).colorScheme.error
         : completed
@@ -297,6 +302,8 @@ class _DownloadStatusCard extends StatelessWidget {
                   ? Icons.error_outline
                   : completed
                   ? Icons.check_circle_outline
+                  : terminal
+                  ? Icons.open_in_new
                   : Icons.downloading_rounded,
               color: color,
             ),
@@ -309,11 +316,40 @@ class _DownloadStatusCard extends StatelessWidget {
                     job.label,
                     style: const TextStyle(fontWeight: FontWeight.w700),
                   ),
-                  if (!completed && !failed) ...[
+                  if (job.message != null) ...[
+                    const SizedBox(height: 3),
+                    Text(
+                      job.message!,
+                      style: Theme.of(context).textTheme.bodySmall,
+                    ),
+                  ],
+                  if (!terminal) ...[
                     const SizedBox(height: 7),
                     LinearProgressIndicator(
                       value: job.progress,
                       borderRadius: BorderRadius.circular(4),
+                    ),
+                    const SizedBox(height: 6),
+                    Wrap(
+                      spacing: 12,
+                      runSpacing: 3,
+                      children: [
+                        if (job.totalBytes != null)
+                          Text(
+                            '${_formatBytes(job.downloadedBytes)} of ${_formatBytes(job.totalBytes!)}',
+                            style: Theme.of(context).textTheme.bodySmall,
+                          ),
+                        if (job.downloadSpeed > 0)
+                          Text(
+                            '${_formatBytes(job.downloadSpeed)}/s',
+                            style: Theme.of(context).textTheme.bodySmall,
+                          ),
+                        if (job.etaSeconds != null)
+                          Text(
+                            '${_formatDuration(job.etaSeconds!)} remaining',
+                            style: Theme.of(context).textTheme.bodySmall,
+                          ),
+                      ],
                     ),
                   ],
                 ],
@@ -325,6 +361,31 @@ class _DownloadStatusCard extends StatelessWidget {
       ),
     );
   }
+}
+
+String _formatBytes(int bytes) {
+  if (bytes >= 1024 * 1024 * 1024) {
+    return '${(bytes / (1024 * 1024 * 1024)).toStringAsFixed(1)} GB';
+  }
+  if (bytes >= 1024 * 1024) {
+    return '${(bytes / (1024 * 1024)).toStringAsFixed(1)} MB';
+  }
+  if (bytes >= 1024) return '${(bytes / 1024).toStringAsFixed(1)} KB';
+  return '$bytes B';
+}
+
+String _formatDuration(int seconds) {
+  if (seconds < 60) return '${seconds}s';
+  final minutes = seconds ~/ 60;
+  final remainingSeconds = seconds % 60;
+  if (minutes < 60) {
+    return remainingSeconds == 0
+        ? '${minutes}m'
+        : '${minutes}m ${remainingSeconds}s';
+  }
+  final hours = minutes ~/ 60;
+  final remainingMinutes = minutes % 60;
+  return remainingMinutes == 0 ? '${hours}h' : '${hours}h ${remainingMinutes}m';
 }
 
 class _TorrentCard extends StatelessWidget {

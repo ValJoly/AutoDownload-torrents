@@ -3,7 +3,7 @@ import os
 import unittest
 from unittest.mock import patch
 
-from fastapi import Depends, FastAPI
+from fastapi import BackgroundTasks, Depends, FastAPI
 from fastapi.testclient import TestClient
 
 from auth_api import create_auth_api
@@ -227,6 +227,125 @@ class AuthApiTests(PostgresTestCase):
         self.assertEqual(unauthorized.status_code, 401)
         self.assertEqual(login.status_code, 200)
         self.assertEqual(authorized.status_code, 404)
+
+    def test_launch_queues_preparation_and_returns_a_job_immediately(self) -> None:
+        database_url, bridge_store, schema = self.create_store()
+        bridge_store.create_initial_owner(
+            user_id="bridge-owner",
+            username="owner",
+            password_hash=hash_password("correct horse battery staple"),
+        )
+        with patch.dict(
+            os.environ,
+            {
+                "TR4CKER_API_KEY": "test-api-key",
+                "SKYFORGE_DATABASE_URL": database_url,
+                "SKYFORGE_DATABASE_SCHEMA": schema,
+            },
+        ):
+            import main
+
+            main = importlib.reload(main)
+            background_tasks = BackgroundTasks()
+            with patch.object(main, "_prepare_and_launch_download") as prepare:
+                response = main.launch_torrent_download(
+                    "sample-torrent",
+                    background_tasks,
+                    main.LaunchTorrentBody(library="books"),
+                    {"user_id": "bridge-owner"},
+                )
+
+        self.drop_schema(schema)
+        self.assertEqual(response["status"], "preparing")
+        self.assertEqual(response["phase"], "preparing")
+        self.assertTrue(response["job_id"])
+        self.assertNotIn("owner_id", response)
+        prepare.assert_not_called()
+        self.assertEqual(len(background_tasks.tasks), 1)
+        self.assertEqual(
+            background_tasks.tasks[0].args[1:],
+            ("sample-torrent", "books"),
+        )
+
+    def test_download_status_is_visible_only_to_the_job_owner(self) -> None:
+        database_url, bridge_store, schema = self.create_store()
+        bridge_store.create_initial_owner(
+            user_id="bridge-owner",
+            username="bridge-owner",
+            password_hash=hash_password("correct horse battery staple"),
+        )
+        bridge_store.create_user(
+            user_id="bridge-member",
+            username="bridge-member",
+            password_hash=hash_password("correct horse battery staple"),
+            role="member",
+        )
+        with patch.dict(
+            os.environ,
+            {
+                "TR4CKER_API_KEY": "test-api-key",
+                "SKYFORGE_DATABASE_URL": database_url,
+                "SKYFORGE_DATABASE_SCHEMA": schema,
+            },
+        ):
+            import main
+
+            main = importlib.reload(main)
+            job = main.register_download_job(
+                owner_id="bridge-owner",
+                slug="sample-torrent",
+                status="running",
+                phase="downloading",
+                client="configured",
+            )
+            with main.download_jobs_lock:
+                main.download_jobs[job["job_id"]].update(
+                    _aria2_port=6800,
+                    _aria2_secret="must-not-leak",
+                    _aria2_gid="internal-gid",
+                )
+
+            class SuccessfulLauncher:
+                def wait(self) -> int:
+                    return 0
+
+            main.monitor_download_job(job["job_id"], SuccessfulLauncher())
+            with TestClient(main.app) as client:
+                owner_login = client.post(
+                    "/api/auth/login",
+                    json={
+                        "username": "bridge-owner",
+                        "password": "correct horse battery staple",
+                    },
+                )
+                member_login = client.post(
+                    "/api/auth/login",
+                    json={
+                        "username": "bridge-member",
+                        "password": "correct horse battery staple",
+                    },
+                )
+                owner_headers = {
+                    "Authorization": f"Bearer {owner_login.json()['access_token']}"
+                }
+                member_headers = {
+                    "Authorization": f"Bearer {member_login.json()['access_token']}"
+                }
+                own_job = client.get(
+                    f"/api/downloads/{job['job_id']}", headers=owner_headers
+                )
+                other_job = client.get(
+                    f"/api/downloads/{job['job_id']}", headers=member_headers
+                )
+        self.drop_schema(schema)
+
+        self.assertEqual(own_job.status_code, 200)
+        self.assertNotIn("owner_id", own_job.json())
+        self.assertNotIn("_aria2_secret", own_job.json())
+        self.assertNotIn("_aria2_port", own_job.json())
+        self.assertNotIn("_aria2_gid", own_job.json())
+        self.assertEqual(own_job.json()["status"], "handed_off")
+        self.assertEqual(other_job.status_code, 404)
 
 
 if __name__ == "__main__":

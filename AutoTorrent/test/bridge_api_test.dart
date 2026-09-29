@@ -57,6 +57,47 @@ void main() {
     },
   );
 
+  test('download job parses determinate aria2 progress details', () {
+    final job = DownloadJob.fromJson({
+      'job_id': 'job-1',
+      'client': 'aria2c',
+      'status': 'running',
+      'phase': 'downloading',
+      'message': 'Downloading with aria2.',
+      'progress': 0.25,
+      'downloaded_bytes': 256,
+      'total_bytes': 1024,
+      'download_speed': 128,
+      'eta_seconds': 6,
+    });
+
+    expect(job.progress, 0.25);
+    expect(job.downloadedBytes, 256);
+    expect(job.totalBytes, 1024);
+    expect(job.downloadSpeed, 128);
+    expect(job.etaSeconds, 6);
+    expect(job.phase, 'downloading');
+  });
+
+  test(
+    'external launcher jobs preserve indeterminate progress and feedback',
+    () {
+      final job = DownloadJob.fromJson({
+        'job_id': 'job-2',
+        'client': 'configured',
+        'status': 'handed_off',
+        'phase': 'monitoring',
+        'message': 'Launcher exited; transfer progress is unavailable.',
+        'progress': null,
+      });
+
+      expect(job.progress, isNull);
+      expect(job.client, 'configured');
+      expect(job.message, contains('unavailable'));
+      expect(job.label, contains('progress is unavailable'));
+    },
+  );
+
   test('logout revokes the current bearer session', () async {
     late http.Request capturedRequest;
     final api = BridgeApi(

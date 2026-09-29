@@ -60,28 +60,64 @@ class CreatedBridgeInvite {
 }
 
 class DownloadJob {
-  const DownloadJob({required this.id, required this.status, this.progress});
+  const DownloadJob({
+    required this.id,
+    required this.status,
+    this.phase = 'unknown',
+    this.message,
+    this.client = 'unknown',
+    this.progress,
+    this.downloadedBytes = 0,
+    this.totalBytes,
+    this.downloadSpeed = 0,
+    this.etaSeconds,
+  });
 
   final String id;
   final String status;
+  final String phase;
+  final String? message;
+  final String client;
   final double? progress;
+  final int downloadedBytes;
+  final int? totalBytes;
+  final int downloadSpeed;
+  final int? etaSeconds;
 
   factory DownloadJob.fromJson(Map<String, dynamic> json) => DownloadJob(
     id: '${json['job_id'] ?? ''}',
     status: '${json['status'] ?? 'unknown'}',
+    phase: '${json['phase'] ?? 'unknown'}',
+    message: json['message'] as String?,
+    client: '${json['client'] ?? 'unknown'}',
     progress: (json['progress'] as num?)?.toDouble(),
+    downloadedBytes: (json['downloaded_bytes'] as num?)?.toInt() ?? 0,
+    totalBytes: (json['total_bytes'] as num?)?.toInt(),
+    downloadSpeed: (json['download_speed'] as num?)?.toInt() ?? 0,
+    etaSeconds: (json['eta_seconds'] as num?)?.toInt(),
   );
 
   String get label {
-    switch (status) {
-      case 'running':
-        return 'Downloading on computer';
-      case 'completed':
-        return 'Download completed';
-      case 'failed':
-        return 'Download failed';
+    if (status == 'completed') return 'Download completed';
+    if (status == 'failed') return 'Download failed';
+    if (status == 'handed_off' || status == 'unknown') {
+      return 'Client started; progress is unavailable';
+    }
+    switch (phase) {
+      case 'preparing':
+        return 'Fetching torrent metadata';
+      case 'starting':
+        return 'Starting download client';
+      case 'queued':
+        return 'Queued in aria2';
+      case 'paused':
+        return 'Download paused';
+      case 'monitoring':
+        return 'External client started; progress is unavailable';
+      case 'downloading':
+        return 'Downloading';
       default:
-        return 'Starting download';
+        return message ?? 'Starting download';
     }
   }
 }

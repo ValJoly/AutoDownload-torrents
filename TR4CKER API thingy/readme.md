@@ -10,6 +10,7 @@ This service exposes a compact HTTP layer for the app:
 - Streams `.torrent` files to the client.
 - Stores launch/download job metadata in memory.
 - Starts a local torrent client or `aria2c` when the user triggers launch.
+- Reports aria2 byte/percentage/speed/ETA progress and lifecycle-only status for external launchers.
 - Supports dual-stack IPv4/IPv6 listeners when configured.
 
 ## Repository layout
@@ -179,7 +180,16 @@ Backend tests use an isolated PostgreSQL database; set
 - `GET /api/torrents/{slug}` — fetch torrent detail metadata.
 - `GET /api/torrents/{slug}/download` — stream the `.torrent` file.
 - `POST /api/torrents/{slug}/launch` — download the `.torrent` file and attempt to launch a local client. This route and other `/api` routes require a bearer session.
-- `GET /api/downloads/{job_id}` — fetch the latest download job state.
+- `GET /api/downloads/{job_id}` — fetch the latest progress for a job owned by the authenticated user.
+
+Launch returns a job immediately while the bridge fetches and validates the
+torrent metadata. When `aria2c` is available, the bridge uses its JSON-RPC
+interface bound to loopback only to report real downloaded/total bytes, speed,
+and ETA. The RPC port and secret are not exposed to the app or published by
+Compose. Custom commands and OS file associations report preparation and
+handoff states only; SkyForge does not invent percentage progress for clients
+that do not provide telemetry. Jobs remain in memory and disappear when the
+bridge restarts.
 
 ## Notes
 
