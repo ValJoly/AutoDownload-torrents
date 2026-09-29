@@ -7,7 +7,7 @@ import 'torrent_event.dart';
 import 'torrent_state.dart';
 
 class TorrentBloc extends Bloc<TorrentEvent, TorrentState> {
-  TorrentBloc(this._api) : super(const TorrentState()) {
+  TorrentBloc(this._api, {this._onUnauthorized}) : super(const TorrentState()) {
     on<SearchRequested>(_onSearchRequested);
     on<SearchValidationFailed>(_onSearchValidationFailed);
     on<LibraryChanged>(_onLibraryChanged);
@@ -16,7 +16,14 @@ class TorrentBloc extends Bloc<TorrentEvent, TorrentState> {
   }
 
   final BridgeApi _api;
+  final Future<void> Function()? _onUnauthorized;
   Timer? _statusTimer;
+
+  Future<void> _invalidateUnauthorized(Object error) async {
+    if (error is BridgeException && error.statusCode == 401) {
+      await _onUnauthorized?.call();
+    }
+  }
 
   Future<void> _onSearchRequested(
     SearchRequested event,
@@ -28,11 +35,11 @@ class TorrentBloc extends Bloc<TorrentEvent, TorrentState> {
         event.bridgeUrl,
         event.query,
         event.library,
-        event.username,
-        event.password,
+        event.sessionToken,
       );
       emit(state.copyWith(loading: false, results: results, error: null));
     } catch (error) {
+      await _invalidateUnauthorized(error);
       emit(
         state.copyWith(
           loading: false,
@@ -64,22 +71,15 @@ class TorrentBloc extends Bloc<TorrentEvent, TorrentState> {
         event.bridgeUrl,
         event.torrent.slug,
         event.library,
-        event.username,
-        event.password,
+        event.sessionToken,
       );
       emit(state.copyWith(error: null, activeDownload: job));
       _statusTimer?.cancel();
       _statusTimer = Timer.periodic(const Duration(seconds: 3), (_) {
-        add(
-          DownloadStatusRequested(
-            event.bridgeUrl,
-            job,
-            event.username,
-            event.password,
-          ),
-        );
+        add(DownloadStatusRequested(event.bridgeUrl, job, event.sessionToken));
       });
     } catch (error) {
+      await _invalidateUnauthorized(error);
       emit(
         state.copyWith(
           error: error is BridgeException
@@ -98,14 +98,14 @@ class TorrentBloc extends Bloc<TorrentEvent, TorrentState> {
       final job = await _api.downloadStatus(
         event.bridgeUrl,
         event.job.id,
-        event.username,
-        event.password,
+        event.sessionToken,
       );
       emit(state.copyWith(activeDownload: job));
       if (job.status == 'completed' || job.status == 'failed') {
         _statusTimer?.cancel();
       }
-    } catch (_) {
+    } catch (error) {
+      await _invalidateUnauthorized(error);
       // Keep the last known state while a single status poll is unavailable.
     }
   }

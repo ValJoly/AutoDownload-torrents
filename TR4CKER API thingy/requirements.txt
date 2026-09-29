@@ -3,3 +3,5 @@ uvicorn
 requests
 python-dotenv
 torrentool
+libgen_api_enhanced
+psycopg[binary]>=3.2,<4

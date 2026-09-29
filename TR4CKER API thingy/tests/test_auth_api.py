@@ -1,0 +1,233 @@
+import importlib
+import os
+import unittest
+from unittest.mock import patch
+
+from fastapi import Depends, FastAPI
+from fastapi.testclient import TestClient
+
+from auth_api import create_auth_api
+from auth_security import hash_password
+from database_support import PostgresTestCase
+
+
+class AuthApiTests(PostgresTestCase):
+    def setUp(self) -> None:
+        super().setUp()
+        self.app = FastAPI()
+        auth_router, current_user = create_auth_api(self.store)
+        self.app.include_router(auth_router)
+
+        @self.app.get("/protected")
+        def protected(user=Depends(current_user)):
+            return {"username": user["username"]}
+
+        self.client = TestClient(self.app)
+
+    def tearDown(self) -> None:
+        self.client.close()
+        super().tearDown()
+
+    def test_login_token_authenticates_and_logout_revokes_it(self) -> None:
+        login = self.client.post(
+            "/api/auth/login",
+            json={"username": "owner", "password": "correct horse battery staple"},
+        )
+        self.assertEqual(login.status_code, 200)
+        self.assertNotIn("password_hash", login.json())
+        token = login.json()["access_token"]
+        headers = {"Authorization": f"Bearer {token}"}
+
+        self.assertEqual(self.client.get("/protected", headers=headers).status_code, 200)
+        self.assertEqual(self.client.get("/api/auth/me", headers=headers).json()["username"], "owner")
+        self.assertEqual(self.client.post("/api/auth/logout", headers=headers).status_code, 204)
+        self.assertEqual(self.client.get("/protected", headers=headers).status_code, 401)
+
+    def test_login_rejects_invalid_credentials(self) -> None:
+        response = self.client.post(
+            "/api/auth/login", json={"username": "owner", "password": "wrong"}
+        )
+
+        self.assertEqual(response.status_code, 401)
+        self.assertEqual(response.json()["detail"], "Invalid username or password.")
+
+    def test_owner_can_create_and_list_invites_without_hash_disclosure(self) -> None:
+        login = self.client.post(
+            "/api/auth/login",
+            json={"username": "owner", "password": "correct horse battery staple"},
+        )
+        headers = {"Authorization": f"Bearer {login.json()['access_token']}"}
+
+        created = self.client.post(
+            "/api/auth/invites",
+            headers=headers,
+            json={"expires_in_seconds": 3600},
+        )
+        listed = self.client.get("/api/auth/invites", headers=headers)
+
+        self.assertEqual(created.status_code, 201)
+        self.assertTrue(created.json()["code"])
+        self.assertEqual(created.json()["expires_in_seconds"], 3600)
+        self.assertEqual(listed.status_code, 200)
+        self.assertEqual(len(listed.json()), 1)
+        self.assertNotIn("code", listed.text)
+        self.assertNotIn("token_hash", listed.text)
+        self.assertNotIn("invite_hash", listed.text)
+
+    def test_invite_registration_creates_member_session_and_consumes_code(self) -> None:
+        owner_login = self.client.post(
+            "/api/auth/login",
+            json={"username": "owner", "password": "correct horse battery staple"},
+        )
+        owner_headers = {
+            "Authorization": f"Bearer {owner_login.json()['access_token']}"
+        }
+        invite = self.client.post(
+            "/api/auth/invites", headers=owner_headers, json={}
+        ).json()
+
+        registered = self.client.post(
+            "/api/auth/register",
+            json={
+                "code": invite["code"],
+                "username": "new-member",
+                "password": "correct horse battery staple",
+            },
+        )
+        token = registered.json()["access_token"]
+        member_headers = {"Authorization": f"Bearer {token}"}
+        current_user = self.client.get("/api/auth/me", headers=member_headers)
+        reused = self.client.post(
+            "/api/auth/register",
+            json={
+                "code": invite["code"],
+                "username": "another-member",
+                "password": "correct horse battery staple",
+            },
+        )
+
+        self.assertEqual(registered.status_code, 201)
+        self.assertEqual(registered.json()["user"]["role"], "member")
+        self.assertEqual(current_user.status_code, 200)
+        self.assertEqual(current_user.json()["username"], "new-member")
+        self.assertEqual(reused.status_code, 400)
+
+    def test_member_cannot_manage_invites_and_can_redeem_invite(self) -> None:
+        owner_login = self.client.post(
+            "/api/auth/login",
+            json={"username": "owner", "password": "correct horse battery staple"},
+        )
+        owner_headers = {
+            "Authorization": f"Bearer {owner_login.json()['access_token']}"
+        }
+        invite = self.client.post(
+            "/api/auth/invites", headers=owner_headers, json={}
+        ).json()
+        registered = self.client.post(
+            "/api/auth/register",
+            json={
+                "code": invite["code"],
+                "username": "member",
+                "password": "correct horse battery staple",
+            },
+        )
+        member_headers = {
+            "Authorization": f"Bearer {registered.json()['access_token']}"
+        }
+
+        self.assertEqual(
+            self.client.post("/api/auth/invites", headers=member_headers, json={}).status_code,
+            403,
+        )
+        self.assertEqual(self.client.get("/api/auth/invites", headers=member_headers).status_code, 403)
+
+    def test_owner_can_revoke_invite_and_reject_invalid_registration(self) -> None:
+        login = self.client.post(
+            "/api/auth/login",
+            json={"username": "owner", "password": "correct horse battery staple"},
+        )
+        headers = {"Authorization": f"Bearer {login.json()['access_token']}"}
+        invite = self.client.post(
+            "/api/auth/invites", headers=headers, json={}
+        ).json()
+
+        revoked = self.client.delete(
+            f"/api/auth/invites/{invite['invite_id']}", headers=headers
+        )
+        rejected = self.client.post(
+            "/api/auth/register",
+            json={
+                "code": invite["code"],
+                "username": "member",
+                "password": "correct horse battery staple",
+            },
+        )
+
+        self.assertEqual(revoked.status_code, 204)
+        self.assertEqual(rejected.status_code, 400)
+
+    def test_registration_rejects_whitespace_username_and_short_password(self) -> None:
+        for payload in (
+            {"code": "unused", "username": "   ", "password": "long enough password"},
+            {"code": "unused", "username": "valid-name", "password": "short"},
+        ):
+            with self.subTest(payload=payload):
+                response = self.client.post("/api/auth/register", json=payload)
+                self.assertEqual(response.status_code, 422)
+
+    def test_non_ascii_invite_attempt_is_rejected_without_server_error(self) -> None:
+        response = self.client.post(
+            "/api/auth/register",
+            json={
+                "code": "招待コード",
+                "username": "member",
+                "password": "correct horse battery staple",
+            },
+        )
+
+        self.assertEqual(response.status_code, 400)
+
+    def test_protected_route_rejects_missing_bearer_token(self) -> None:
+        self.assertEqual(self.client.get("/protected").status_code, 401)
+
+    def test_existing_bridge_routes_require_a_bearer_session(self) -> None:
+        database_url, bridge_store, schema = self.create_store()
+        bridge_store.create_initial_owner(
+            user_id="bridge-owner",
+            username="owner",
+            password_hash=hash_password("correct horse battery staple"),
+        )
+        with patch.dict(
+            os.environ,
+            {
+                "TR4CKER_API_KEY": "test-api-key",
+                "SKYFORGE_DATABASE_URL": database_url,
+                "SKYFORGE_DATABASE_SCHEMA": schema,
+            },
+        ):
+            import main
+
+            main = importlib.reload(main)
+            with TestClient(main.app) as client:
+                unauthorized = client.get("/api/downloads/missing-job")
+                login = client.post(
+                    "/api/auth/login",
+                    json={
+                        "username": "owner",
+                        "password": "correct horse battery staple",
+                    },
+                )
+                token = login.json()["access_token"]
+                authorized = client.get(
+                    "/api/downloads/missing-job",
+                    headers={"Authorization": f"Bearer {token}"},
+                )
+        self.drop_schema(schema)
+
+        self.assertEqual(unauthorized.status_code, 401)
+        self.assertEqual(login.status_code, 200)
+        self.assertEqual(authorized.status_code, 404)
+
+
+if __name__ == "__main__":
+    unittest.main()

@@ -1,4 +1,19 @@
 services:
+  db:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:?Set POSTGRES_DB in .env}
+      POSTGRES_USER: ${POSTGRES_USER:?Set POSTGRES_USER in .env}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U \"$$POSTGRES_USER\" -d \"$$POSTGRES_DB\""]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+    restart: unless-stopped
+
   skyforge:
     image: skyforge:latest
     container_name: SkyForge
@@ -13,6 +28,14 @@ services:
       # The host path is mounted at /downloads; the app then creates the
       # configured Books and Audiobooks child folders beneath it.
       TORRENT_DOWNLOAD_DIR: /downloads
+      SKYFORGE_DATABASE_URL: ${SKYFORGE_DATABASE_URL:?Set SKYFORGE_DATABASE_URL in .env}
     volumes:
       - "${TORRENT_HOST_DOWNLOAD_DIR:-I:/Books}:/downloads"
+      - "./data:/migration:ro"
+    depends_on:
+      db:
+        condition: service_healthy
     restart: unless-stopped
+
+volumes:
+  postgres_data:

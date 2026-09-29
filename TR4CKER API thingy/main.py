@@ -15,9 +15,12 @@ import requests
 from dotenv import load_dotenv
 from fastapi import Body, Depends, FastAPI, HTTPException, Query, Response
 from fastapi.responses import StreamingResponse
-from fastapi.security import HTTPBasic, HTTPBasicCredentials
 from pydantic import BaseModel
 from torrentool.api import Torrent
+
+from auth_api import create_auth_api
+from auth_store import AuthStore
+from libgen_api_enhanced import LibgenSearch
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("tr4cker_bridge")
@@ -30,42 +33,42 @@ API_KEY = os.getenv("TR4CKER_API_KEY")
 if not API_KEY:
     raise RuntimeError("Missing TR4CKER_API_KEY in environment (.env file).")
 
+auth_store = AuthStore.from_environment()
+auth_router, require_api_credentials = create_auth_api(auth_store)
 app = FastAPI(title="TR4CKER API bridge")
+app.include_router(auth_router)
 download_jobs: Dict[str, Dict[str, Any]] = {}
 download_jobs_lock = threading.Lock()
-security = HTTPBasic(auto_error=False)
-
-AUTH_ENABLED = os.getenv("SKYFORGE_AUTH_ENABLED", "true").lower() in {
-    "1",
-    "true",
-    "yes",
-    "on",
-}
-AUTH_USERNAME = os.getenv("SKYFORGE_AUTH_USERNAME", "skyforge")
-AUTH_PASSWORD = os.getenv("SKYFORGE_AUTH_PASSWORD", "skyforge")
-
-
-def require_api_credentials(
-    credentials: Optional[HTTPBasicCredentials] = Depends(security),
-) -> None:
-    if not AUTH_ENABLED:
-        return
-    if credentials is None:
-        raise HTTPException(
-            status_code=401,
-            detail="Authentication required.",
-        )
-    if credentials.username != AUTH_USERNAME or credentials.password != AUTH_PASSWORD:
-        raise HTTPException(
-            status_code=401,
-            detail="Invalid or missing launch credentials.",
-        )
 
 
 class LaunchTorrentBody(BaseModel):
     """Optional launch payload. `library` defaults to `audiobooks` when omitted and chooses between the configured folder targets."""
 
     library: str = "audiobooks"
+
+
+class BookSearchFilters(BaseModel):
+    """Filter criteria mapping for book search."""
+
+    ID: Optional[str] = None
+    Author: Optional[str] = None
+    Title: Optional[str] = None
+    Publisher: Optional[str] = None
+    Year: Optional[str] = None
+    Pages: Optional[str] = None
+    Language: Optional[str] = None
+    Size: Optional[str] = None
+    Extension: Optional[str] = None
+
+    class Config:
+        extra = "allow"
+        json_schema_extra = {
+            "example": {
+                "Language": "German",
+                "Year": "2009",
+                "Extension": "epub",
+            }
+        }
 
 
 def register_download_job(
@@ -110,7 +113,7 @@ def monitor_download_job(job_id: str, process: subprocess.Popen[Any]) -> None:
 @app.get("/api/downloads/{job_id}")
 def get_download_status(
     job_id: str,
-    _credentials: Optional[HTTPBasicCredentials] = Depends(require_api_credentials),
+    _credentials: Dict[str, Any] = Depends(require_api_credentials),
 ) -> Dict[str, Any]:
     with download_jobs_lock:
         job = download_jobs.get(job_id)
@@ -149,7 +152,7 @@ def health() -> Dict[str, str]:
 def search_torrents(
     q: str = Query(..., description="Search query"),
     cat: str = Query("livres-audio", description="Category to search in"),
-    _credentials: Optional[HTTPBasicCredentials] = Depends(require_api_credentials),
+    _credentials: Dict[str, Any] = Depends(require_api_credentials),
     # page: int = Query(1, ge=1),
 ) -> Any:
     """Search Torrents from TR4CKER.
@@ -166,10 +169,64 @@ def search_torrents(
     return response.json()
 
 
+@app.get("/api/books/search")
+def search_books(
+    filters: Dict[str, Any] = Body(
+        ...,
+        description="Filter criteria map for book search (e.g., {'Language': 'German', 'Year': '2009'}).",
+        openapi_examples={
+            "language_and_year": {
+                "summary": "Language and Year filter",
+                "value": {"Language": "German", "Year": "2009"},
+            },
+            "year_and_extension": {
+                "summary": "Year and Extension filter",
+                "value": {"Year": "2007", "Extension": "epub"},
+            },
+        },
+    ),
+    _credentials: Dict[str, Any] = Depends(require_api_credentials),
+) -> Dict[str, Any]:
+    """Search books using custom field filters."""
+    logger.info("Incoming book search request with filters: %s", filters)
+
+    s = LibgenSearch(mirror="bz")
+    title = filters.get("Title")
+    filters_without_title = {k: v for k, v in filters.items() if k != "Title"}
+    print(f"Searching books with title: {title} and filters: {filters_without_title}")
+
+    try:
+        titles = s.search_title_filtered(
+            title,
+            filters_without_title,
+            exact_match=False,
+        )
+    except requests.exceptions.Timeout as exc:
+        logger.warning("Book search upstream timed out: %s", exc)
+        raise HTTPException(
+            status_code=504,
+            detail="The book search provider did not respond in time.",
+        ) from exc
+    except requests.exceptions.RequestException as exc:
+        logger.warning("Book search upstream request failed: %s", exc)
+        raise HTTPException(
+            status_code=502,
+            detail="The book search provider could not be reached.",
+        ) from exc
+    except Exception as exc:
+        logger.exception("Unexpected book search provider error")
+        raise HTTPException(
+            status_code=502,
+            detail="The book search provider returned an unexpected error.",
+        ) from exc
+    print(f"Book search results count: {len(titles)} for filters: {filters}")
+    return {"filters": filters, "results": titles}
+
+
 @app.get("/api/torrents/{slug}")
 def get_torrent_details(
     slug: str,
-    _credentials: Optional[HTTPBasicCredentials] = Depends(require_api_credentials),
+    _credentials: Dict[str, Any] = Depends(require_api_credentials),
 ) -> Any:
     response = request_tr4cker(f"{API_BASE_URL}/torrents/{slug}")
     return response.json()
@@ -178,7 +235,7 @@ def get_torrent_details(
 @app.get("/api/torrents/{slug}/download")
 def download_torrent(
     slug: str,
-    _credentials: Optional[HTTPBasicCredentials] = Depends(require_api_credentials),
+    _credentials: Dict[str, Any] = Depends(require_api_credentials),
 ) -> StreamingResponse:
     response = request_tr4cker(f"{API_BASE_URL}/torrents/{slug}/download", stream=True)
 
@@ -195,7 +252,7 @@ def download_torrent(
 def launch_torrent_download(
     slug: str,
     body: Optional[LaunchTorrentBody] = Body(default=None),
-    _credentials: Optional[HTTPBasicCredentials] = Depends(require_api_credentials),
+    _credentials: Dict[str, Any] = Depends(require_api_credentials),
 ) -> Dict[str, Any]:
     """Download a .torrent file, validate it with torrentool, then launch it through a configured or discovered client.
 
@@ -203,9 +260,7 @@ def launch_torrent_download(
     The chosen branch is appended to `TORRENT_DOWNLOAD_DIR`, where `AUDIOBOOKS` and `BOOKS`
     point to the environment-relative folders such as `'\\Audiobooks'` and `'\\Books'`.
 
-    Launching a torrent is protected with HTTP Basic authentication. Configure the
-    same username/password pair in the Flutter app settings and on the server using
-    `SKYFORGE_AUTH_USERNAME` and `SKYFORGE_AUTH_PASSWORD`.
+    Launching a torrent requires a valid bearer session issued by `/api/auth/login`.
     """
     library_value = body.library if body else "audiobooks"
     logger.info("Incoming launch request: slug=%s library=%s", slug, library_value)

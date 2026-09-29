@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:shared_preferences/shared_preferences.dart';
+import 'package:go_router/go_router.dart';
 
-import '../../core/app_keys.dart';
+import '../../core/auth_session.dart';
 import '../../data/api/bridge_api.dart';
 import '../../data/models/torrent_item.dart';
 import '../bloc/torrent_bloc.dart';
@@ -10,73 +10,32 @@ import '../bloc/torrent_event.dart';
 import '../bloc/torrent_state.dart';
 
 class TorrentHomePage extends StatefulWidget {
-  const TorrentHomePage({super.key});
+  const TorrentHomePage({required this.session, super.key});
+
+  final AuthSession session;
 
   @override
   State<TorrentHomePage> createState() => _TorrentHomePageState();
 }
 
 class _TorrentHomePageState extends State<TorrentHomePage> {
-  static const _bridgeUrlKey = 'bridge_url';
-  static const _usernameKey = 'bridge_username';
-  static const _passwordKey = 'bridge_password';
-  static const _defaultBridgeUrl = 'http://100.94.144.32:8384';
-
-  final _bridgeController = TextEditingController(text: _defaultBridgeUrl);
-  final _usernameController = TextEditingController();
-  final _passwordController = TextEditingController();
   final _searchController = TextEditingController();
   String _library = 'audiobooks';
 
   @override
-  void initState() {
-    super.initState();
-    _loadBridgeUrl();
-    _loadCredentials();
-  }
-
-  Future<void> _loadBridgeUrl() async {
-    final prefs = await SharedPreferences.getInstance();
-    final stored = prefs.getString(_bridgeUrlKey);
-    final value = (stored == null || stored.trim().isEmpty)
-        ? _defaultBridgeUrl
-        : stored;
-    if (mounted) {
-      _bridgeController.text = value;
-    }
-  }
-
-  Future<void> _loadCredentials() async {
-    final prefs = await SharedPreferences.getInstance();
-    final username = prefs.getString(_usernameKey) ?? '';
-    final password = prefs.getString(_passwordKey) ?? '';
-    if (mounted) {
-      _usernameController.text = username;
-      _passwordController.text = password;
-    }
-  }
-
-  Future<void> _saveBridgeUrl(String value) async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString(_bridgeUrlKey, value.trim());
-  }
-
-  Future<void> _saveCredentials(String username, String password) async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString(_usernameKey, username.trim());
-    await prefs.setString(_passwordKey, password.trim());
-  }
-
-  @override
   void dispose() {
-    _bridgeController.dispose();
-    _usernameController.dispose();
-    _passwordController.dispose();
     _searchController.dispose();
     super.dispose();
   }
 
   Future<void> _search() async {
+    final sessionToken = widget.session.accessToken;
+    if (sessionToken == null || sessionToken.isEmpty) {
+      context.read<TorrentBloc>().add(
+        const SearchValidationFailed('Sign in to your bridge to search.'),
+      );
+      return;
+    }
     final query = _searchController.text.trim();
     if (query.isEmpty) {
       context.read<TorrentBloc>().add(
@@ -88,99 +47,37 @@ class _TorrentHomePageState extends State<TorrentHomePage> {
     }
 
     context.read<TorrentBloc>().add(
-      SearchRequested(
-        _bridgeController.text,
-        query,
-        _library,
-        _usernameController.text,
-        _passwordController.text,
-      ),
+      SearchRequested(widget.session.bridgeUrl, query, _library, sessionToken),
     );
   }
 
   Future<void> _launch(TorrentItem torrent) async {
+    final sessionToken = widget.session.accessToken;
+    if (sessionToken == null || sessionToken.isEmpty) {
+      context.read<TorrentBloc>().add(
+        const SearchValidationFailed(
+          'Sign in to your bridge to launch downloads.',
+        ),
+      );
+      return;
+    }
     context.read<TorrentBloc>().add(
       LaunchRequested(
-        _bridgeController.text,
+        widget.session.bridgeUrl,
         torrent,
         _library,
-        _usernameController.text,
-        _passwordController.text,
+        sessionToken,
       ),
     );
   }
 
-  Future<void> _showSettings() async {
-    final rootContext = AppKeys.navigatorKey.currentContext;
-    if (rootContext == null) {
-      return;
+  Future<void> _signOut() async {
+    try {
+      await widget.session.signOut();
+    } catch (_) {
+      // Local credentials are cleared even if the bridge cannot be reached.
     }
-
-    await showDialog<void>(
-      context: rootContext,
-      builder: (dialogContext) => AlertDialog(
-        title: const Text('Bridge connection'),
-        content: SizedBox(
-          width: 420,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              TextField(
-                controller: _bridgeController,
-                keyboardType: TextInputType.url,
-                decoration: const InputDecoration(
-                  labelText: 'Bridge URL',
-                  hintText: 'http://192.168.1.72:8384',
-                  prefixIcon: Icon(Icons.link),
-                ),
-              ),
-              const SizedBox(height: 12),
-              TextField(
-                controller: _usernameController,
-                decoration: const InputDecoration(
-                  labelText: 'Username / ID',
-                  hintText: 'skyforge-user',
-                  prefixIcon: Icon(Icons.person),
-                ),
-              ),
-              const SizedBox(height: 12),
-              TextField(
-                controller: _passwordController,
-                obscureText: true,
-                decoration: const InputDecoration(
-                  labelText: 'Password',
-                  hintText: '••••••••',
-                  prefixIcon: Icon(Icons.lock),
-                ),
-              ),
-            ],
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(dialogContext).pop(),
-            child: const Text('Cancel'),
-          ),
-          FilledButton(
-            onPressed: () async {
-              final value = _bridgeController.text.trim();
-              if (value.isNotEmpty) {
-                _bridgeController.text = value;
-                await _saveBridgeUrl(value);
-              }
-              await _saveCredentials(
-                _usernameController.text,
-                _passwordController.text,
-              );
-              if (dialogContext.mounted) {
-                Navigator.of(dialogContext).pop();
-              }
-            },
-            child: const Text('Save'),
-          ),
-        ],
-      ),
-    );
+    if (mounted) context.go('/auth');
   }
 
   @override
@@ -210,10 +107,16 @@ class _TorrentHomePageState extends State<TorrentHomePage> {
               ],
             ),
             actions: [
+              if (widget.session.isOwner)
+                IconButton(
+                  onPressed: () => context.go('/invites'),
+                  tooltip: 'Manage invitations',
+                  icon: const Icon(Icons.group_add_outlined),
+                ),
               IconButton(
-                onPressed: _showSettings,
-                tooltip: 'Bridge settings',
-                icon: const Icon(Icons.tune_rounded),
+                onPressed: _signOut,
+                tooltip: 'Sign out',
+                icon: const Icon(Icons.logout),
               ),
               const SizedBox(width: 10),
             ],

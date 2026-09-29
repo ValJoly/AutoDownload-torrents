@@ -15,24 +15,16 @@ class SearchRequested extends TorrentEvent {
     this.bridgeUrl,
     this.query,
     this.library,
-    this.username,
-    this.password,
+    this.sessionToken,
   );
 
   final String bridgeUrl;
   final String query;
   final String library;
-  final String username;
-  final String password;
+  final String sessionToken;
 
   @override
-  List<Object?> get props => [
-    bridgeUrl,
-    query,
-    library,
-    username,
-    password,
-  ];
+  List<Object?> get props => [bridgeUrl, query, library, sessionToken];
 }
 
 class SearchValidationFailed extends TorrentEvent {
@@ -58,33 +50,25 @@ class LaunchRequested extends TorrentEvent {
     this.bridgeUrl,
     this.torrent,
     this.library,
-    this.username,
-    this.password,
+    this.sessionToken,
   );
 
   final String bridgeUrl;
   final TorrentItem torrent;
   final String library;
-  final String username;
-  final String password;
+  final String sessionToken;
 
   @override
-  List<Object?> get props => [bridgeUrl, torrent, library, username, password];
+  List<Object?> get props => [bridgeUrl, torrent, library, sessionToken];
 }
 
 class DownloadStatusRequested extends TorrentEvent {
-  const DownloadStatusRequested(
-    this.bridgeUrl,
-    this.job,
-    this.username,
-    this.password,
-  );
+  const DownloadStatusRequested(this.bridgeUrl, this.job, this.sessionToken);
 
   final String bridgeUrl;
   final DownloadJob job;
-  final String username;
-  final String password;
+  final String sessionToken;
 
   @override
-  List<Object?> get props => [bridgeUrl, job, username, password];
+  List<Object?> get props => [bridgeUrl, job, sessionToken];
 }
