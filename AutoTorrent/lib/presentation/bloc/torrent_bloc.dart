@@ -144,6 +144,7 @@ class TorrentBloc extends Bloc<TorrentEvent, TorrentState> {
         event.query,
         event.language,
         event.sessionToken,
+        gutenbergOnly: event.gutenbergOnly,
       );
       emit(state.copyWith(loading: false, legalResults: results, error: null));
     } catch (error) {

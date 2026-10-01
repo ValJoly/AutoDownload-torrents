@@ -90,11 +90,13 @@ void main() {
         'Victor Hugo',
         'fr',
         'session-token',
+        gutenbergOnly: true,
       );
 
       expect(capturedRequest.url.path, '/api/books/free/search');
       expect(capturedRequest.url.queryParameters['q'], 'Victor Hugo');
       expect(capturedRequest.url.queryParameters['lang'], 'fr');
+      expect(capturedRequest.url.queryParameters['gutenberg_only'], 'true');
       expect(capturedRequest.headers['authorization'], 'Bearer session-token');
       expect(results.single.title, 'Les Misérables');
       expect(results.single.languages, ['fr']);

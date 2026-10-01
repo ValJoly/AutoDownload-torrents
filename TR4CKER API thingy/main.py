@@ -577,10 +577,15 @@ def search_books(
 def search_free_books(
     q: str = Query(..., min_length=2, max_length=120),
     lang: str = Query("fr", min_length=2, max_length=2),
+    gutenberg_only: bool = Query(False),
     _credentials: Dict[str, Any] = Depends(require_api_credentials),
 ) -> Dict[str, Any]:
     try:
-        results = search_legal_books(q, language=lang)
+        results = search_legal_books(
+            q,
+            language=lang,
+            gutenberg_only=gutenberg_only,
+        )
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     except LegalBooksError as exc:

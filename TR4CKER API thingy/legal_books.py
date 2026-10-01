@@ -197,6 +197,27 @@ def _search_gutendex(query: str, language: str) -> list[dict[str, Any]]:
     return records
 
 
+def _search_gutendex_terms(query: str, language: str) -> list[dict[str, Any]] | None:
+    terms = list(dict.fromkeys(re.findall(r"[^\W_]+", query.casefold())))
+    if not 2 <= len(terms) <= 3:
+        return None
+
+    matches: dict[str, dict[str, Any]] = {}
+    successful_search = False
+    for term in terms:
+        try:
+            books = _search_gutendex(term, language)
+        except LegalBooksError:
+            continue
+        successful_search = True
+        for book in books:
+            searchable = " ".join([book["title"], *book["authors"]]).casefold()
+            if all(term in searchable for term in terms):
+                matches.setdefault(book["id"], book)
+
+    return list(matches.values()) if successful_search else None
+
+
 def _search_google_books(query: str, language: str) -> list[dict[str, Any]]:
     key = os.getenv("GOOGLE_BOOKS_API_KEY")
     if not key:
@@ -240,6 +261,7 @@ def search_legal_books(
     query: str,
     *,
     language: str = "fr",
+    gutenberg_only: bool = False,
 ) -> list[dict[str, Any]]:
     query = query.strip()
     if not 2 <= len(query) <= 120:
@@ -247,9 +269,20 @@ def search_legal_books(
     language = validate_language(language)
     try:
         books = _search_gutendex(query, language)
-    except LegalBooksError:
+    except LegalBooksError as error:
+        if "timed out" in str(error).lower():
+            term_books = _search_gutendex_terms(query, language)
+            if term_books is not None:
+                return term_books
+        if gutenberg_only:
+            raise
         return _search_google_books(query, language)
-    if books or not os.getenv("GOOGLE_BOOKS_API_KEY"):
+    if books:
+        return books
+    term_books = _search_gutendex_terms(query, language)
+    if term_books is not None:
+        return term_books
+    if gutenberg_only or not os.getenv("GOOGLE_BOOKS_API_KEY"):
         return books
     return _search_google_books(query, language)
 

@@ -113,6 +113,93 @@ class GutendexTests(unittest.TestCase):
 
     @patch.dict("os.environ", {"GOOGLE_BOOKS_API_KEY": "test-google-key"})
     @patch("legal_books.requests.get")
+    def test_gutenberg_only_search_does_not_fall_back_to_google(self, get):
+        get.side_effect = requests.exceptions.ReadTimeout()
+
+        with self.assertRaises(LegalBooksError):
+            search_legal_books("Victor Hugo", language="fr", gutenberg_only=True)
+
+        self.assertEqual(get.call_count, 3)
+        self.assertEqual(
+            get.call_args.args[0],
+            "https://gutendex.com/books/",
+        )
+
+    @patch.dict("os.environ", {"GOOGLE_BOOKS_API_KEY": "test-google-key"})
+    @patch("legal_books.requests.get")
+    def test_gutenberg_only_multiword_search_retries_terms_and_filters_results(
+        self, get
+    ):
+        class Response:
+            status_code = 200
+
+            def __init__(self, results):
+                self.results = results
+
+            def raise_for_status(self):
+                return None
+
+            def json(self):
+                return {"results": self.results}
+
+            def close(self):
+                return None
+
+        match = self.make_book(
+            id=4791,
+            title="Voyage au Centre de la Terre",
+            authors=[{"name": "Jules Verne"}],
+            formats={
+                "application/epub+zip": "https://www.gutenberg.org/ebooks/4791.epub.images"
+            },
+        )
+        unrelated = self.make_book(
+            id=1342,
+            title="Pride and Prejudice",
+            authors=[{"name": "Jane Austen"}],
+        )
+        get.side_effect = [
+            requests.exceptions.ReadTimeout(),
+            Response([match, unrelated]),
+            Response([match]),
+        ]
+
+        books = search_legal_books("Jules Verne", language="fr", gutenberg_only=True)
+
+        self.assertEqual([book["id"] for book in books], ["4791"])
+        self.assertEqual(
+            [call.kwargs["params"]["search"] for call in get.call_args_list],
+            ["Jules Verne", "jules", "verne"],
+        )
+
+    @patch.dict("os.environ", {"GOOGLE_BOOKS_API_KEY": "test-google-key"})
+    @patch("legal_books.requests.get")
+    def test_gutenberg_only_multiword_search_returns_empty_for_no_full_match(
+        self, get
+    ):
+        class Response:
+            status_code = 200
+
+            def raise_for_status(self):
+                return None
+
+            def json(self):
+                return {"results": [self.book]}
+
+            def close(self):
+                return None
+
+        response = Response()
+        response.book = self.make_book()
+        get.side_effect = [requests.exceptions.ReadTimeout(), response, response]
+
+        books = search_legal_books("Jules Verne", language="fr", gutenberg_only=True)
+
+        self.assertEqual(books, [])
+        self.assertEqual(get.call_count, 3)
+
+    @patch.dict("os.environ", {"GOOGLE_BOOKS_API_KEY": "test-google-key"})
+    @patch("legal_books.requests.get")
     def test_search_falls_back_to_google_after_gutendex_timeout(self, get):
         class Response:
             status_code = 200
@@ -138,7 +225,12 @@ class GutendexTests(unittest.TestCase):
             def close(self):
                 return None
 
-        get.side_effect = [requests.exceptions.ReadTimeout(), Response()]
+        get.side_effect = [
+            requests.exceptions.ReadTimeout(),
+            requests.exceptions.ReadTimeout(),
+            requests.exceptions.ReadTimeout(),
+            Response(),
+        ]
 
         books = search_legal_books("Victor Hugo", language="fr")
 
@@ -146,13 +238,13 @@ class GutendexTests(unittest.TestCase):
         self.assertEqual(books[0]["languages"], ["fr"])
         self.assertEqual(books[0]["formats"], [])
         self.assertEqual(
-            get.call_args_list[1].args[0],
+            get.call_args_list[3].args[0],
             "https://www.googleapis.com/books/v1/volumes",
         )
         self.assertEqual(
-            get.call_args_list[1].kwargs["params"]["langRestrict"], "fr"
+            get.call_args_list[3].kwargs["params"]["langRestrict"], "fr"
         )
-        self.assertEqual(get.call_args_list[1].kwargs["params"]["key"], "test-google-key")
+        self.assertEqual(get.call_args_list[3].kwargs["params"]["key"], "test-google-key")
 
     @patch("legal_books.requests.get")
     def test_search_rejects_malformed_catalog_response(self, get):

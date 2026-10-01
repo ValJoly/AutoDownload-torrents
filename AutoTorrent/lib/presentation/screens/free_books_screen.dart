@@ -29,6 +29,7 @@ class FreeBooksScreen extends StatefulWidget {
 class _FreeBooksScreenState extends State<FreeBooksScreen> {
   final _searchController = TextEditingController();
   String _language = 'fr';
+  bool _gutenbergOnly = false;
   bool _hasSearched = false;
 
   @override
@@ -59,6 +60,7 @@ class _FreeBooksScreenState extends State<FreeBooksScreen> {
         query,
         _language,
         token,
+        gutenbergOnly: _gutenbergOnly,
       ),
     );
   }
@@ -117,6 +119,14 @@ class _FreeBooksScreenState extends State<FreeBooksScreen> {
                 onChanged: (language) {
                   if (language != null) setState(() => _language = language);
                 },
+              ),
+              SwitchListTile.adaptive(
+                key: const Key('gutenberg-only-toggle'),
+                contentPadding: EdgeInsets.zero,
+                title: const Text('Project Gutenberg only'),
+                subtitle: const Text('Do not use Google Books as a fallback'),
+                value: _gutenbergOnly,
+                onChanged: (value) => setState(() => _gutenbergOnly = value),
               ),
               const SizedBox(height: 12),
               TextField(

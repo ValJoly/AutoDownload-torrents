@@ -26,6 +26,7 @@ class _DownloadsApi extends BridgeApi {
   String? requestedSessionToken;
   String? searchedLegalBookQuery;
   String? searchedLegalBookLanguage;
+  bool? searchedGutenbergOnly;
   String? downloadedLegalBookId;
   String? downloadedLegalBookFormat;
 
@@ -45,10 +46,12 @@ class _DownloadsApi extends BridgeApi {
     String bridgeUrl,
     String query,
     String language,
-    String sessionToken,
-  ) async {
+    String sessionToken, {
+    bool gutenbergOnly = false,
+  }) async {
     searchedLegalBookQuery = query;
     searchedLegalBookLanguage = language;
+    searchedGutenbergOnly = gutenbergOnly;
     return legalBooks;
   }
 
@@ -397,6 +400,12 @@ void main() {
     await tester.pump();
 
     expect(find.text('French'), findsOneWidget);
+    final sourceToggle = tester.widget<SwitchListTile>(
+      find.byKey(const Key('gutenberg-only-toggle')),
+    );
+    expect(sourceToggle.value, isFalse);
+    await tester.tap(find.byKey(const Key('gutenberg-only-toggle')));
+    await tester.pumpAndSettle();
     await tester.tap(find.text('French'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('Spanish').last);
@@ -408,6 +417,7 @@ void main() {
 
     expect(api.searchedLegalBookQuery, 'Victor Hugo');
     expect(api.searchedLegalBookLanguage, 'es');
+    expect(api.searchedGutenbergOnly, isTrue);
     expect(find.text('Les Misérables'), findsOneWidget);
     expect(find.text('Project Gutenberg · French'), findsOneWidget);
     expect(

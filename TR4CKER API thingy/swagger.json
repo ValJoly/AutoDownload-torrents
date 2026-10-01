@@ -30,7 +30,7 @@
     "/api/books/free/search": {
       "get": {
         "summary": "Search Free Books",
-        "description": "Search Project Gutenberg through Gutendex. Language defaults to French. If Gutendex times out or returns no matches and GOOGLE_BOOKS_API_KEY is configured, Google Books preview-only results are returned. Only Gutendex EPUBs can be downloaded by the bridge. Copyright metadata reflects US status only and is not a rights determination for other countries.",
+        "description": "Search Project Gutenberg through Gutendex. Language defaults to French. Set gutenberg_only=true to disable Google Books preview fallback. Otherwise, if Gutendex times out or returns no matches and GOOGLE_BOOKS_API_KEY is configured, Google Books preview-only results may be returned. Only Gutendex EPUBs can be downloaded by the bridge. Copyright metadata reflects US status only and is not a rights determination for other countries.",
         "operationId": "search_free_books_api_books_free_search_get",
         "parameters": [
           {
@@ -53,6 +53,16 @@
               "enum": ["fr", "en", "es", "de", "it", "pt"],
               "default": "fr",
               "title": "Lang"
+            }
+          },
+          {
+            "name": "gutenberg_only",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "default": false,
+              "title": "Gutenberg Only"
             }
           }
         ],

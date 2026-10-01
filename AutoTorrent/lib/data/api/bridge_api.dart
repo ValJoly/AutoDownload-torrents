@@ -488,10 +488,16 @@ class BridgeApi {
     String bridgeUrl,
     String query,
     String language,
-    String sessionToken,
-  ) async {
-    final uri = Uri.parse('${_base(bridgeUrl)}/api/books/free/search')
-        .replace(queryParameters: {'q': query.trim(), 'lang': language});
+    String sessionToken, {
+    bool gutenbergOnly = false,
+  }) async {
+    final uri = Uri.parse('${_base(bridgeUrl)}/api/books/free/search').replace(
+      queryParameters: {
+        'q': query.trim(),
+        'lang': language,
+        'gutenberg_only': '$gutenbergOnly',
+      },
+    );
     final client = _clientFactory();
     try {
       final response = await client

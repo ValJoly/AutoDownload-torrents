@@ -180,7 +180,7 @@ Backend tests use an isolated PostgreSQL database; set
 - `GET /api/books/search` — search books with the supplied filter map.
 - `GET /api/torrents/{slug}` — fetch torrent detail metadata.
 - `GET /api/torrents/{slug}/download` — stream the `.torrent` file.
-- `GET /api/books/free/search?q={query}&lang={language}` — search Gutendex first; `lang` defaults to `fr` and supports `fr`, `en`, `es`, `de`, `it`, or `pt`. If Gutendex is slow or returns no matches and `GOOGLE_BOOKS_API_KEY` is configured, return Google Books preview results as a fallback.
+- `GET /api/books/free/search?q={query}&lang={language}&gutenberg_only={true|false}` — search Gutendex first; `lang` defaults to `fr` and supports `fr`, `en`, `es`, `de`, `it`, or `pt`. `gutenberg_only=true` disables Google Books fallback; otherwise, if Gutendex is slow or returns no matches and `GOOGLE_BOOKS_API_KEY` is configured, Google Books preview results may be returned.
 - `POST /api/books/free/{book_id}/download` with `{"format":"epub"}` — revalidate the Gutendex record and save its EPUB under the configured Books folder. Jobs appear in the authenticated user's downloads history. The bridge never accepts a client-supplied download URL.
 - `POST /api/torrents/{slug}/launch` — download the `.torrent` file and attempt to launch a local client. This route and other `/api` routes require a bearer session.
 - `GET /api/downloads?limit=50&offset=0` — list the authenticated user's saved download jobs, newest-updated first. `limit` must be between 1 and 100; `offset` is zero-based.

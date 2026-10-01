@@ -32,16 +32,24 @@ class LegalBooksSearchRequested extends TorrentEvent {
     this.bridgeUrl,
     this.query,
     this.language,
-    this.sessionToken,
-  );
+    this.sessionToken, {
+    this.gutenbergOnly = false,
+  });
 
   final String bridgeUrl;
   final String query;
   final String language;
   final String sessionToken;
+  final bool gutenbergOnly;
 
   @override
-  List<Object?> get props => [bridgeUrl, query, language, sessionToken];
+  List<Object?> get props => [
+    bridgeUrl,
+    query,
+    language,
+    sessionToken,
+    gutenbergOnly,
+  ];
 }
 
 class SearchValidationFailed extends TorrentEvent {
