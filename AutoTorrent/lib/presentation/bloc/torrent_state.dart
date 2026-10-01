@@ -9,31 +9,52 @@ class TorrentState extends Equatable {
     this.library = 'audiobooks',
     this.results = const [],
     this.error,
-    this.activeDownload,
+    this.downloads = const [],
+    this.downloadsLoading = false,
+    this.downloadsError,
   });
 
   final bool loading;
   final String library;
   final List<TorrentItem> results;
   final String? error;
-  final DownloadJob? activeDownload;
+  final List<DownloadJob> downloads;
+  final bool downloadsLoading;
+  final String? downloadsError;
+
+  int get activeDownloadCount =>
+      downloads.where((job) => !job.isTerminal).length;
+
+  bool get hasActiveDownloads => downloads.any((job) => !job.isTerminal);
 
   TorrentState copyWith({
     bool? loading,
     String? library,
     List<TorrentItem>? results,
     String? error,
-    DownloadJob? activeDownload,
+    List<DownloadJob>? downloads,
+    bool? downloadsLoading,
+    String? downloadsError,
   }) {
     return TorrentState(
       loading: loading ?? this.loading,
       library: library ?? this.library,
       results: results ?? this.results,
       error: error,
-      activeDownload: activeDownload ?? this.activeDownload,
+      downloads: downloads ?? this.downloads,
+      downloadsLoading: downloadsLoading ?? this.downloadsLoading,
+      downloadsError: downloadsError,
     );
   }
 
   @override
-  List<Object?> get props => [loading, library, results, error, activeDownload];
+  List<Object?> get props => [
+    loading,
+    library,
+    results,
+    error,
+    downloads,
+    downloadsLoading,
+    downloadsError,
+  ];
 }

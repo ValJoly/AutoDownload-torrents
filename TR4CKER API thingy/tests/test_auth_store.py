@@ -199,7 +199,125 @@ class AuthStoreTests(PostgresTestCase):
                 "SELECT MAX(version) AS version FROM schema_migrations"
             ).fetchone()["version"]
 
-        self.assertEqual(version, 1)
+        self.assertEqual(version, 2)
+
+    def test_download_jobs_crud_and_owner_isolation(self) -> None:
+        self.store.create_user(
+            user_id="user-2",
+            username="other-user",
+            password_hash="hash",
+            role="member",
+        )
+        job1 = self.store.create_download_job(
+            job_id="job-1",
+            owner_id="user-1",
+            slug="slug-1",
+            info="Book One",
+            status="preparing",
+            created_at=10,
+            updated_at=10,
+        )
+        job2 = self.store.create_download_job(
+            job_id="job-2",
+            owner_id="user-1",
+            slug="slug-2",
+            info="Audiobook Two",
+            status="running",
+            created_at=20,
+            updated_at=20,
+        )
+        self.store.create_download_job(
+            job_id="job-3",
+            owner_id="user-2",
+            slug="slug-3",
+            info="Book Three",
+            status="running",
+            created_at=30,
+            updated_at=30,
+        )
+
+        user1_jobs = self.store.list_download_jobs("user-1")
+        self.assertEqual(len(user1_jobs), 2)
+        self.assertEqual([j["job_id"] for j in user1_jobs], ["job-2", "job-1"])
+        self.assertEqual(user1_jobs[0]["info"], "Audiobook Two")
+
+        user2_jobs = self.store.list_download_jobs("user-2")
+        self.assertEqual(len(user2_jobs), 1)
+        self.assertEqual(user2_jobs[0]["job_id"], "job-3")
+
+        self.store.update_download_job(
+            "job-1",
+            status="completed",
+            phase="completed",
+            progress=1.0,
+            downloaded_bytes=1000,
+            total_bytes=1000,
+            updated_at=40,
+        )
+        updated_job = self.store.get_download_job("job-1", owner_id="user-1")
+        self.assertIsNotNone(updated_job)
+        self.assertEqual(updated_job["status"], "completed")
+        self.assertEqual(updated_job["progress"], 1.0)
+        self.assertEqual(updated_job["downloaded_bytes"], 1000)
+
+        # Confirm job-1 is now top of the list because updated_at was set to 40
+        user1_jobs_after_update = self.store.list_download_jobs("user-1")
+        self.assertEqual([j["job_id"] for j in user1_jobs_after_update], ["job-1", "job-2"])
+
+        # Cannot get job-3 when querying as user-1
+        self.assertIsNone(self.store.get_download_job("job-3", owner_id="user-1"))
+
+    def test_download_job_listing_supports_offset_pagination(self) -> None:
+        for index in range(5):
+            self.store.create_download_job(
+                job_id=f"page-job-{index}",
+                owner_id="user-1",
+                slug=f"slug-{index}",
+                status="completed",
+                created_at=index,
+                updated_at=index,
+            )
+
+        first_page = self.store.list_download_jobs("user-1", limit=2, offset=0)
+        second_page = self.store.list_download_jobs("user-1", limit=2, offset=2)
+
+        self.assertEqual([job["job_id"] for job in first_page], ["page-job-4", "page-job-3"])
+        self.assertEqual([job["job_id"] for job in second_page], ["page-job-2", "page-job-1"])
+
+    def test_reconcile_startup_jobs_marks_active_jobs_as_interrupted(self) -> None:
+        self.store.create_download_job(
+            job_id="job-running",
+            owner_id="user-1",
+            slug="slug-1",
+            status="running",
+            phase="downloading",
+        )
+        self.store.create_download_job(
+            job_id="job-completed",
+            owner_id="user-1",
+            slug="slug-2",
+            status="completed",
+            phase="completed",
+        )
+        self.store.create_download_job(
+            job_id="job-preparing",
+            owner_id="user-1",
+            slug="slug-3",
+            status="preparing",
+            phase="preparing",
+        )
+
+        reconciled_count = self.store.reconcile_startup_jobs()
+        self.assertEqual(reconciled_count, 2)
+
+        running_job = self.store.get_download_job("job-running")
+        completed_job = self.store.get_download_job("job-completed")
+        preparing_job = self.store.get_download_job("job-preparing")
+
+        self.assertEqual(running_job["status"], "interrupted")
+        self.assertEqual(running_job["phase"], "interrupted")
+        self.assertEqual(completed_job["status"], "completed")
+        self.assertEqual(preparing_job["status"], "interrupted")
 
 
 if __name__ == "__main__":

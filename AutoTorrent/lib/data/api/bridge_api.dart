@@ -63,6 +63,9 @@ class DownloadJob {
   const DownloadJob({
     required this.id,
     required this.status,
+    this.slug = '',
+    this.info = '',
+    this.downloadDir = '',
     this.phase = 'unknown',
     this.message,
     this.client = 'unknown',
@@ -71,10 +74,15 @@ class DownloadJob {
     this.totalBytes,
     this.downloadSpeed = 0,
     this.etaSeconds,
+    this.createdAt,
+    this.updatedAt,
   });
 
   final String id;
   final String status;
+  final String slug;
+  final String info;
+  final String downloadDir;
   final String phase;
   final String? message;
   final String client;
@@ -83,10 +91,15 @@ class DownloadJob {
   final int? totalBytes;
   final int downloadSpeed;
   final int? etaSeconds;
+  final DateTime? createdAt;
+  final DateTime? updatedAt;
 
   factory DownloadJob.fromJson(Map<String, dynamic> json) => DownloadJob(
     id: '${json['job_id'] ?? ''}',
     status: '${json['status'] ?? 'unknown'}',
+    slug: '${json['slug'] ?? ''}',
+    info: '${json['info'] ?? ''}',
+    downloadDir: '${json['download_dir'] ?? ''}',
     phase: '${json['phase'] ?? 'unknown'}',
     message: json['message'] as String?,
     client: '${json['client'] ?? 'unknown'}',
@@ -95,11 +108,29 @@ class DownloadJob {
     totalBytes: (json['total_bytes'] as num?)?.toInt(),
     downloadSpeed: (json['download_speed'] as num?)?.toInt() ?? 0,
     etaSeconds: (json['eta_seconds'] as num?)?.toInt(),
+    createdAt: _parseEpochSeconds(json['created_at']),
+    updatedAt: _parseEpochSeconds(json['updated_at']),
   );
+
+  /// A human-readable label for this download; prefers the resolved torrent
+  /// name when available, falling back to the requested slug.
+  String get displayName =>
+      info.isNotEmpty ? info : (slug.isNotEmpty ? slug : 'Download');
+
+  bool get isTerminal => {
+    'completed',
+    'failed',
+    'handed_off',
+    'unknown',
+    'interrupted',
+  }.contains(status);
 
   String get label {
     if (status == 'completed') return 'Download completed';
     if (status == 'failed') return 'Download failed';
+    if (status == 'interrupted') {
+      return 'Interrupted by a bridge restart';
+    }
     if (status == 'handed_off' || status == 'unknown') {
       return 'Client started; progress is unavailable';
     }
@@ -120,6 +151,14 @@ class DownloadJob {
         return message ?? 'Starting download';
     }
   }
+}
+
+DateTime? _parseEpochSeconds(dynamic value) {
+  if (value is! num) return null;
+  return DateTime.fromMillisecondsSinceEpoch(
+    (value * 1000).round(),
+    isUtc: true,
+  );
 }
 
 class BridgeApi {
@@ -456,6 +495,51 @@ class BridgeApi {
       );
     }
     return DownloadJob.fromJson(data);
+  }
+
+  Future<List<DownloadJob>> listDownloads(
+    String bridgeUrl,
+    String sessionToken,
+  ) async {
+    const pageSize = 100;
+    final client = _clientFactory();
+    try {
+      final downloads = <DownloadJob>[];
+      var offset = 0;
+      while (true) {
+        final uri = Uri.parse(
+          '${_base(bridgeUrl)}/api/downloads',
+        ).replace(queryParameters: {'limit': '$pageSize', 'offset': '$offset'});
+        final response = await client
+            .get(uri, headers: _authHeaders(sessionToken))
+            .timeout(
+              const Duration(seconds: 8),
+              onTimeout: () => throw TimeoutException(
+                'The bridge did not respond in time.',
+                const Duration(seconds: 8),
+              ),
+            );
+        final data = _decode(response);
+        if (data is! List) {
+          throw BridgeException(
+            'The bridge returned an unexpected downloads list.',
+          );
+        }
+        final page = data
+            .whereType<Map<String, dynamic>>()
+            .map(DownloadJob.fromJson)
+            .toList();
+        downloads.addAll(page);
+        if (page.length < pageSize) return downloads;
+        offset += pageSize;
+      }
+    } on TimeoutException {
+      throw BridgeException(
+        'The bridge downloads request timed out. Check the bridge server.',
+      );
+    } finally {
+      client.close();
+    }
   }
 
   Map<String, String> _authHeaders(String sessionToken) {

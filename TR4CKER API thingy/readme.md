@@ -8,7 +8,7 @@ This service exposes a compact HTTP layer for the app:
 
 - Forwards TR4CKER search, details, and download requests.
 - Streams `.torrent` files to the client.
-- Stores launch/download job metadata in memory.
+- Persists per-user launch/download job metadata in PostgreSQL.
 - Starts a local torrent client or `aria2c` when the user triggers launch.
 - Reports aria2 byte/percentage/speed/ETA progress and lifecycle-only status for external launchers.
 - Supports dual-stack IPv4/IPv6 listeners when configured.
@@ -180,6 +180,7 @@ Backend tests use an isolated PostgreSQL database; set
 - `GET /api/torrents/{slug}` — fetch torrent detail metadata.
 - `GET /api/torrents/{slug}/download` — stream the `.torrent` file.
 - `POST /api/torrents/{slug}/launch` — download the `.torrent` file and attempt to launch a local client. This route and other `/api` routes require a bearer session.
+- `GET /api/downloads?limit=50&offset=0` — list the authenticated user's saved download jobs, newest-updated first. `limit` must be between 1 and 100; `offset` is zero-based.
 - `GET /api/downloads/{job_id}` — fetch the latest progress for a job owned by the authenticated user.
 
 Launch returns a job immediately while the bridge fetches and validates the
@@ -188,8 +189,10 @@ interface bound to loopback only to report real downloaded/total bytes, speed,
 and ETA. The RPC port and secret are not exposed to the app or published by
 Compose. Custom commands and OS file associations report preparation and
 handoff states only; SkyForge does not invent percentage progress for clients
-that do not provide telemetry. Jobs remain in memory and disappear when the
-bridge restarts.
+that do not provide telemetry. Job details are persisted in PostgreSQL and can
+be listed after the Flutter app is reopened. A bridge restart marks jobs that
+were still active as interrupted; it does not resume their torrent-client
+processes.
 
 ## Notes
 

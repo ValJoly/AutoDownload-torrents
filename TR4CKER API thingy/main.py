@@ -42,6 +42,11 @@ if not API_KEY:
     raise RuntimeError("Missing TR4CKER_API_KEY in environment (.env file).")
 
 auth_store = AuthStore.from_environment()
+try:
+    auth_store.reconcile_startup_jobs()
+except Exception:
+    logger.exception("Could not reconcile startup download jobs.")
+
 auth_router, require_api_credentials = create_auth_api(auth_store)
 app = FastAPI(title="TR4CKER API bridge")
 app.include_router(auth_router)
@@ -91,34 +96,59 @@ def register_download_job(
     message: str = "Preparing torrent metadata.",
 ) -> Dict[str, Any]:
     job_id = str(uuid.uuid4())
-    job = {
-        "job_id": job_id,
-        "owner_id": owner_id,
-        "slug": slug,
-        "info": info,
-        "download_dir": download_dir,
-        "client": client,
-        "status": status,
-        "phase": phase,
-        "message": message,
-        "progress": None,
-        "downloaded_bytes": 0,
-        "total_bytes": None,
-        "download_speed": 0,
-        "eta_seconds": None,
-        "updated_at": time.time(),
-    }
+    now = time.time()
+    try:
+        db_job = auth_store.create_download_job(
+            job_id=job_id,
+            owner_id=owner_id,
+            slug=slug,
+            info=info,
+            download_dir=download_dir,
+            client=client,
+            status=status,
+            phase=phase,
+            message=message,
+            created_at=now,
+            updated_at=now,
+        )
+    except Exception:
+        logger.exception("Failed to persist download job to database.")
+        db_job = {
+            "job_id": job_id,
+            "owner_id": owner_id,
+            "slug": slug,
+            "info": info,
+            "download_dir": download_dir,
+            "client": client,
+            "status": status,
+            "phase": phase,
+            "message": message,
+            "progress": None,
+            "downloaded_bytes": 0,
+            "total_bytes": None,
+            "download_speed": 0,
+            "eta_seconds": None,
+            "created_at": now,
+            "updated_at": now,
+        }
     with download_jobs_lock:
-        download_jobs[job_id] = job
-    return dict(job)
+        download_jobs[job_id] = dict(db_job)
+    return dict(db_job)
 
 
 def update_download_job(job_id: str, **updates: Any) -> None:
+    now = time.time()
     with download_jobs_lock:
         job = download_jobs.get(job_id)
         if job is not None:
             job.update(updates)
-            job["updated_at"] = time.time()
+            job["updated_at"] = now
+    try:
+        auth_store.update_download_job(job_id, updated_at=now, **updates)
+    except Exception:
+        logger.exception(
+            "Failed to update download job in database for job_id=%s", job_id
+        )
 
 
 def public_download_job(job: Dict[str, Any]) -> Dict[str, Any]:
@@ -334,6 +364,60 @@ def _start_aria2_download(
         raise
 
 
+@app.get("/api/downloads")
+def list_downloads(
+    limit: int = Query(50, ge=1, le=100),
+    offset: int = Query(0, ge=0),
+    credentials: Dict[str, Any] = Depends(require_api_credentials),
+) -> list[Dict[str, Any]]:
+    user_id = credentials["user_id"]
+    try:
+        db_jobs = auth_store.list_download_jobs(user_id, limit=limit, offset=offset)
+    except Exception:
+        logger.exception("Failed to list download jobs from database.")
+        with download_jobs_lock:
+            db_jobs = sorted(
+                (j for j in download_jobs.values() if j.get("owner_id") == user_id),
+                key=lambda job: (
+                    job.get("updated_at", 0),
+                    job.get("created_at", 0),
+                    job["job_id"],
+                ),
+                reverse=True,
+            )[offset : offset + limit]
+
+    results: list[Dict[str, Any]] = []
+    for job in db_jobs:
+        job_id = job["job_id"]
+        with download_jobs_lock:
+            mem_job = download_jobs.get(job_id)
+        if (
+            mem_job
+            and mem_job.get("client") == "aria2c"
+            and mem_job.get("status") in {"starting", "running"}
+            and mem_job.get("_aria2_port")
+            and mem_job.get("_aria2_secret")
+            and mem_job.get("_aria2_gid")
+        ):
+            try:
+                status_data = aria2_rpc(
+                    mem_job["_aria2_port"],
+                    mem_job["_aria2_secret"],
+                    "aria2.tellStatus",
+                    mem_job["_aria2_gid"],
+                    ["status", "totalLength", "completedLength", "downloadSpeed", "errorCode"],
+                )
+                _apply_aria2_status(job_id, status_data)
+                with download_jobs_lock:
+                    mem_job = download_jobs.get(job_id)
+                if mem_job:
+                    job = mem_job
+            except (OSError, RuntimeError, urllib.error.URLError, TimeoutError):
+                pass
+        results.append(public_download_job(job))
+    return results
+
+
 @app.get("/api/downloads/{job_id}")
 def get_download_status(
     job_id: str,
@@ -341,22 +425,33 @@ def get_download_status(
 ) -> Dict[str, Any]:
     with download_jobs_lock:
         job = download_jobs.get(job_id)
-        if job is None or job["owner_id"] != credentials["user_id"]:
-            raise HTTPException(status_code=404, detail="Download job not found.")
-        response = public_download_job(job)
+    if job is None:
+        try:
+            job = auth_store.get_download_job(job_id, owner_id=credentials["user_id"])
+        except Exception:
+            logger.exception("Failed to query download job from database for job_id=%s", job_id)
+            job = None
+
+    if job is None or job.get("owner_id") != credentials["user_id"]:
+        raise HTTPException(status_code=404, detail="Download job not found.")
+
+    response = public_download_job(job)
+    with download_jobs_lock:
+        mem_job = download_jobs.get(job_id)
     if (
-        job.get("client") == "aria2c"
-        and job.get("status") in {"starting", "running"}
-        and job.get("_aria2_port")
-        and job.get("_aria2_secret")
-        and job.get("_aria2_gid")
+        mem_job
+        and mem_job.get("client") == "aria2c"
+        and mem_job.get("status") in {"starting", "running"}
+        and mem_job.get("_aria2_port")
+        and mem_job.get("_aria2_secret")
+        and mem_job.get("_aria2_gid")
     ):
         try:
             status_data = aria2_rpc(
-                job["_aria2_port"],
-                job["_aria2_secret"],
+                mem_job["_aria2_port"],
+                mem_job["_aria2_secret"],
                 "aria2.tellStatus",
-                job["_aria2_gid"],
+                mem_job["_aria2_gid"],
                 ["status", "totalLength", "completedLength", "downloadSpeed", "errorCode"],
             )
             _apply_aria2_status(job_id, status_data)

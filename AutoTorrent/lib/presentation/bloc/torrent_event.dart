@@ -72,3 +72,18 @@ class DownloadStatusRequested extends TorrentEvent {
   @override
   List<Object?> get props => [bridgeUrl, job, sessionToken];
 }
+
+class DownloadsFetched extends TorrentEvent {
+  const DownloadsFetched(
+    this.bridgeUrl,
+    this.sessionToken, {
+    this.showLoading = false,
+  });
+
+  final String bridgeUrl;
+  final String sessionToken;
+  final bool showLoading;
+
+  @override
+  List<Object?> get props => [bridgeUrl, sessionToken, showLoading];
+}

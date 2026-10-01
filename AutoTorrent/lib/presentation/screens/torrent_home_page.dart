@@ -3,7 +3,6 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../core/auth_session.dart';
-import '../../data/api/bridge_api.dart';
 import '../../data/models/torrent_item.dart';
 import '../bloc/torrent_bloc.dart';
 import '../bloc/torrent_event.dart';
@@ -107,6 +106,19 @@ class _TorrentHomePageState extends State<TorrentHomePage> {
               ],
             ),
             actions: [
+              IconButton(
+                onPressed: () => context.push('/downloads'),
+                tooltip: 'Download history',
+                icon: Badge(
+                  isLabelVisible: state.activeDownloadCount > 0,
+                  label: Text(
+                    state.activeDownloadCount > 99
+                        ? '99+'
+                        : '${state.activeDownloadCount}',
+                  ),
+                  child: const Icon(Icons.downloading_outlined),
+                ),
+              ),
               if (widget.session.isOwner)
                 IconButton(
                   onPressed: () => context.go('/invites'),
@@ -229,10 +241,6 @@ class _TorrentHomePageState extends State<TorrentHomePage> {
                         ],
                       ),
                       const SizedBox(height: 28),
-                      if (state.activeDownload != null) ...[
-                        _DownloadStatusCard(job: state.activeDownload!),
-                        const SizedBox(height: 20),
-                      ],
                       if (state.loading)
                         const Center(
                           child: Padding(
@@ -269,123 +277,6 @@ class _TorrentHomePageState extends State<TorrentHomePage> {
       },
     );
   }
-}
-
-class _DownloadStatusCard extends StatelessWidget {
-  const _DownloadStatusCard({required this.job});
-
-  final DownloadJob job;
-
-  @override
-  Widget build(BuildContext context) {
-    final completed = job.status == 'completed';
-    final failed = job.status == 'failed';
-    final terminal =
-        completed ||
-        failed ||
-        job.status == 'handed_off' ||
-        job.status == 'unknown';
-    final color = failed
-        ? Theme.of(context).colorScheme.error
-        : completed
-        ? Colors.green.shade700
-        : Theme.of(context).colorScheme.primary;
-    return Card(
-      elevation: 0,
-      color: color.withAlpha(22),
-      child: Padding(
-        padding: const EdgeInsets.all(14),
-        child: Row(
-          children: [
-            Icon(
-              failed
-                  ? Icons.error_outline
-                  : completed
-                  ? Icons.check_circle_outline
-                  : terminal
-                  ? Icons.open_in_new
-                  : Icons.downloading_rounded,
-              color: color,
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    job.label,
-                    style: const TextStyle(fontWeight: FontWeight.w700),
-                  ),
-                  if (job.message != null) ...[
-                    const SizedBox(height: 3),
-                    Text(
-                      job.message!,
-                      style: Theme.of(context).textTheme.bodySmall,
-                    ),
-                  ],
-                  if (!terminal) ...[
-                    const SizedBox(height: 7),
-                    LinearProgressIndicator(
-                      value: job.progress,
-                      borderRadius: BorderRadius.circular(4),
-                    ),
-                    const SizedBox(height: 6),
-                    Wrap(
-                      spacing: 12,
-                      runSpacing: 3,
-                      children: [
-                        if (job.totalBytes != null)
-                          Text(
-                            '${_formatBytes(job.downloadedBytes)} of ${_formatBytes(job.totalBytes!)}',
-                            style: Theme.of(context).textTheme.bodySmall,
-                          ),
-                        if (job.downloadSpeed > 0)
-                          Text(
-                            '${_formatBytes(job.downloadSpeed)}/s',
-                            style: Theme.of(context).textTheme.bodySmall,
-                          ),
-                        if (job.etaSeconds != null)
-                          Text(
-                            '${_formatDuration(job.etaSeconds!)} remaining',
-                            style: Theme.of(context).textTheme.bodySmall,
-                          ),
-                      ],
-                    ),
-                  ],
-                ],
-              ),
-            ),
-            if (job.progress != null) Text('${(job.progress! * 100).round()}%'),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-String _formatBytes(int bytes) {
-  if (bytes >= 1024 * 1024 * 1024) {
-    return '${(bytes / (1024 * 1024 * 1024)).toStringAsFixed(1)} GB';
-  }
-  if (bytes >= 1024 * 1024) {
-    return '${(bytes / (1024 * 1024)).toStringAsFixed(1)} MB';
-  }
-  if (bytes >= 1024) return '${(bytes / 1024).toStringAsFixed(1)} KB';
-  return '$bytes B';
-}
-
-String _formatDuration(int seconds) {
-  if (seconds < 60) return '${seconds}s';
-  final minutes = seconds ~/ 60;
-  final remainingSeconds = seconds % 60;
-  if (minutes < 60) {
-    return remainingSeconds == 0
-        ? '${minutes}m'
-        : '${minutes}m ${remainingSeconds}s';
-  }
-  final hours = minutes ~/ 60;
-  final remainingMinutes = minutes % 60;
-  return remainingMinutes == 0 ? '${hours}h' : '${hours}h ${remainingMinutes}m';
 }
 
 class _TorrentCard extends StatelessWidget {

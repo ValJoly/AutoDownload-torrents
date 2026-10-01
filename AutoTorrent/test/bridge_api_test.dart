@@ -98,6 +98,43 @@ void main() {
     },
   );
 
+  test('listDownloads fetches every page with bearer authentication', () async {
+    final requests = <http.Request>[];
+    final api = BridgeApi(
+      clientFactory: () => MockClient((request) async {
+        requests.add(request);
+        final offset = int.parse(request.url.queryParameters['offset']!);
+        final jobs = offset == 0
+            ? List.generate(
+                100,
+                (index) => {'job_id': 'job-$index', 'status': 'completed'},
+              )
+            : [
+                {'job_id': 'job-100', 'status': 'completed'},
+              ];
+        return http.Response(jsonEncode(jobs), 200);
+      }),
+    );
+
+    final downloads = await api.listDownloads(
+      'http://bridge.local',
+      'session-token',
+    );
+
+    expect(downloads, hasLength(101));
+    expect(downloads.last.id, 'job-100');
+    expect(requests.map((request) => request.url.queryParameters['offset']), [
+      '0',
+      '100',
+    ]);
+    expect(
+      requests.every(
+        (request) => request.headers['authorization'] == 'Bearer session-token',
+      ),
+      isTrue,
+    );
+  });
+
   test('logout revokes the current bearer session', () async {
     late http.Request capturedRequest;
     final api = BridgeApi(

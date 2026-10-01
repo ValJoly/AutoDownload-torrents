@@ -347,6 +347,125 @@ class AuthApiTests(PostgresTestCase):
         self.assertEqual(own_job.json()["status"], "handed_off")
         self.assertEqual(other_job.status_code, 404)
 
+    def test_list_downloads_endpoint_and_state_recovery_across_restart(self) -> None:
+        database_url, bridge_store, schema = self.create_store()
+        bridge_store.create_initial_owner(
+            user_id="bridge-owner",
+            username="bridge-owner",
+            password_hash=hash_password("correct horse battery staple"),
+        )
+        bridge_store.create_user(
+            user_id="bridge-member",
+            username="bridge-member",
+            password_hash=hash_password("correct horse battery staple"),
+            role="member",
+        )
+        with patch.dict(
+            os.environ,
+            {
+                "TR4CKER_API_KEY": "test-api-key",
+                "SKYFORGE_DATABASE_URL": database_url,
+                "SKYFORGE_DATABASE_SCHEMA": schema,
+            },
+        ):
+            import main
+
+            main = importlib.reload(main)
+            job1 = main.register_download_job(
+                owner_id="bridge-owner",
+                slug="slug-1",
+                info="Audiobook One",
+                status="running",
+                phase="downloading",
+            )
+            job2 = main.register_download_job(
+                owner_id="bridge-owner",
+                slug="slug-2",
+                info="Ebook Two",
+                status="completed",
+                phase="completed",
+            )
+            job3 = main.register_download_job(
+                owner_id="bridge-member",
+                slug="slug-3",
+                info="Member Book",
+                status="running",
+                phase="downloading",
+            )
+
+            with TestClient(main.app) as client:
+                owner_login = client.post(
+                    "/api/auth/login",
+                    json={
+                        "username": "bridge-owner",
+                        "password": "correct horse battery staple",
+                    },
+                )
+                member_login = client.post(
+                    "/api/auth/login",
+                    json={
+                        "username": "bridge-member",
+                        "password": "correct horse battery staple",
+                    },
+                )
+                owner_token = owner_login.json()["access_token"]
+                member_token = member_login.json()["access_token"]
+
+                owner_downloads = client.get(
+                    "/api/downloads",
+                    headers={"Authorization": f"Bearer {owner_token}"},
+                )
+                self.assertEqual(owner_downloads.status_code, 200)
+                owner_jobs = owner_downloads.json()
+                self.assertEqual(len(owner_jobs), 2)
+
+                owner_page = client.get(
+                    "/api/downloads?limit=1&offset=1",
+                    headers={"Authorization": f"Bearer {owner_token}"},
+                )
+                invalid_page = client.get(
+                    "/api/downloads?limit=101",
+                    headers={"Authorization": f"Bearer {owner_token}"},
+                )
+                self.assertEqual(owner_page.status_code, 200)
+                self.assertEqual(len(owner_page.json()), 1)
+                self.assertIn(owner_page.json()[0]["job_id"], {job1["job_id"], job2["job_id"]})
+                self.assertEqual(invalid_page.status_code, 422)
+                self.assertEqual(
+                    {j["job_id"] for j in owner_jobs},
+                    {job1["job_id"], job2["job_id"]},
+                )
+                self.assertNotIn("owner_id", owner_jobs[0])
+
+                member_downloads = client.get(
+                    "/api/downloads",
+                    headers={"Authorization": f"Bearer {member_token}"},
+                )
+                self.assertEqual(member_downloads.status_code, 200)
+                member_jobs = member_downloads.json()
+                self.assertEqual(len(member_jobs), 1)
+                self.assertEqual(member_jobs[0]["job_id"], job3["job_id"])
+
+                # Simulate server restart by wiping in-memory dictionary
+                with main.download_jobs_lock:
+                    main.download_jobs.clear()
+
+                recovered_status = client.get(
+                    f"/api/downloads/{job1['job_id']}",
+                    headers={"Authorization": f"Bearer {owner_token}"},
+                )
+                self.assertEqual(recovered_status.status_code, 200)
+                self.assertEqual(recovered_status.json()["info"], "Audiobook One")
+
+                recovered_list = client.get(
+                    "/api/downloads",
+                    headers={"Authorization": f"Bearer {owner_token}"},
+                )
+                self.assertEqual(recovered_list.status_code, 200)
+                self.assertEqual(len(recovered_list.json()), 2)
+
+        self.drop_schema(schema)
+
 
 if __name__ == "__main__":
     unittest.main()

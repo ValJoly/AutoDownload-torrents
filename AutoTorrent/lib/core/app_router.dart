@@ -5,6 +5,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 
 import '../presentation/screens/auth_screen.dart';
+import '../presentation/screens/downloads_screen.dart';
 import '../presentation/screens/invite_management_screen.dart';
 import '../presentation/bloc/torrent_bloc.dart';
 import '../presentation/screens/torrent_home_page.dart';
@@ -48,13 +49,26 @@ class AppRouter {
           builder: (context, state) =>
               AuthScreen(session: session, registration: true),
         ),
-        GoRoute(
-          path: '/',
-          builder: (context, state) => BlocProvider(
-            create: (_) =>
-                TorrentBloc(session.api, onUnauthorized: session.invalidate),
-            child: TorrentHomePage(session: session),
+        ShellRoute(
+          builder: (context, state, child) => BlocProvider(
+            create: (_) => TorrentBloc(
+              session.api,
+              onUnauthorized: session.invalidate,
+              initialBridgeUrl: session.bridgeUrl,
+              initialSessionToken: session.accessToken,
+            ),
+            child: child,
           ),
+          routes: [
+            GoRoute(
+              path: '/',
+              builder: (context, state) => TorrentHomePage(session: session),
+            ),
+            GoRoute(
+              path: '/downloads',
+              builder: (context, state) => DownloadsScreen(session: session),
+            ),
+          ],
         ),
         GoRoute(
           path: '/invites',

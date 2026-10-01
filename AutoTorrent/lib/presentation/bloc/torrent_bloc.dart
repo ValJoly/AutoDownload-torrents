@@ -7,12 +7,28 @@ import 'torrent_event.dart';
 import 'torrent_state.dart';
 
 class TorrentBloc extends Bloc<TorrentEvent, TorrentState> {
-  TorrentBloc(this._api, {this._onUnauthorized}) : super(const TorrentState()) {
+  TorrentBloc(
+    this._api, {
+    this._onUnauthorized,
+    String? initialBridgeUrl,
+    String? initialSessionToken,
+  }) : super(const TorrentState()) {
     on<SearchRequested>(_onSearchRequested);
     on<SearchValidationFailed>(_onSearchValidationFailed);
     on<LibraryChanged>(_onLibraryChanged);
     on<LaunchRequested>(_onLaunchRequested);
     on<DownloadStatusRequested>(_onDownloadStatusRequested);
+    on<DownloadsFetched>(_onDownloadsFetched);
+    if (initialBridgeUrl?.isNotEmpty == true &&
+        initialSessionToken?.isNotEmpty == true) {
+      add(
+        DownloadsFetched(
+          initialBridgeUrl!,
+          initialSessionToken!,
+          showLoading: true,
+        ),
+      );
+    }
   }
 
   final BridgeApi _api;
@@ -22,6 +38,70 @@ class TorrentBloc extends Bloc<TorrentEvent, TorrentState> {
   Future<void> _invalidateUnauthorized(Object error) async {
     if (error is BridgeException && error.statusCode == 401) {
       await _onUnauthorized?.call();
+    }
+  }
+
+  List<DownloadJob> _withJob(List<DownloadJob> jobs, DownloadJob replacement) {
+    final next = jobs.where((job) => job.id != replacement.id).toList()
+      ..add(replacement);
+    next.sort((a, b) {
+      final aDate =
+          a.updatedAt ?? a.createdAt ?? DateTime.fromMillisecondsSinceEpoch(0);
+      final bDate =
+          b.updatedAt ?? b.createdAt ?? DateTime.fromMillisecondsSinceEpoch(0);
+      return bDate.compareTo(aDate);
+    });
+    return next;
+  }
+
+  void _syncPolling(
+    String bridgeUrl,
+    String sessionToken, {
+    bool immediate = false,
+  }) {
+    if (!state.hasActiveDownloads) {
+      _statusTimer?.cancel();
+      _statusTimer = null;
+      return;
+    }
+    _statusTimer?.cancel();
+    if (immediate) add(DownloadsFetched(bridgeUrl, sessionToken));
+    _statusTimer = Timer.periodic(const Duration(seconds: 3), (_) {
+      add(DownloadsFetched(bridgeUrl, sessionToken));
+    });
+  }
+
+  Future<void> _onDownloadsFetched(
+    DownloadsFetched event,
+    Emitter<TorrentState> emit,
+  ) async {
+    if (event.showLoading) {
+      emit(state.copyWith(downloadsLoading: true, downloadsError: null));
+    }
+    try {
+      final downloads = await _api.listDownloads(
+        event.bridgeUrl,
+        event.sessionToken,
+      );
+      emit(
+        state.copyWith(
+          downloads: downloads,
+          downloadsLoading: false,
+          downloadsError: null,
+        ),
+      );
+      _syncPolling(event.bridgeUrl, event.sessionToken);
+    } catch (error) {
+      await _invalidateUnauthorized(error);
+      if (event.showLoading) {
+        emit(
+          state.copyWith(
+            downloadsLoading: false,
+            downloadsError: error is BridgeException ? error.message : 'Could not load download history. Check the bridge connection.',
+          ),
+        );
+      }
+      // Keep the last known download list when a refresh is temporarily unavailable.
     }
   }
 
@@ -66,17 +146,7 @@ class TorrentBloc extends Bloc<TorrentEvent, TorrentState> {
     LaunchRequested event,
     Emitter<TorrentState> emit,
   ) async {
-    emit(
-      state.copyWith(
-        error: null,
-        activeDownload: const DownloadJob(
-          id: '',
-          status: 'preparing',
-          phase: 'preparing',
-          message: 'Contacting the bridge to prepare the torrent.',
-        ),
-      ),
-    );
+    emit(state.copyWith(error: null));
     try {
       final job = await _api.launch(
         event.bridgeUrl,
@@ -84,29 +154,22 @@ class TorrentBloc extends Bloc<TorrentEvent, TorrentState> {
         event.library,
         event.sessionToken,
       );
-      emit(state.copyWith(error: null, activeDownload: job));
-      _statusTimer?.cancel();
-      add(DownloadStatusRequested(event.bridgeUrl, job, event.sessionToken));
-      _statusTimer = Timer.periodic(const Duration(seconds: 3), (_) {
-        add(DownloadStatusRequested(event.bridgeUrl, job, event.sessionToken));
-      });
+      emit(
+        state.copyWith(error: null, downloads: _withJob(state.downloads, job)),
+      );
+      _syncPolling(event.bridgeUrl, event.sessionToken, immediate: true);
     } catch (error) {
       await _invalidateUnauthorized(error);
       emit(
         state.copyWith(
-          activeDownload: DownloadJob(
-            id: '',
-            status: 'failed',
-            phase: 'failed',
-            message: error is BridgeException
-                ? error.message
-                : 'Could not start the download on the computer.',
-          ),
           error: error is BridgeException
               ? error.message
               : 'Could not start the download on the computer.',
         ),
       );
+      if (error is! BridgeException || error.statusCode != 401) {
+        add(DownloadsFetched(event.bridgeUrl, event.sessionToken));
+      }
     }
   }
 
@@ -120,15 +183,8 @@ class TorrentBloc extends Bloc<TorrentEvent, TorrentState> {
         event.job.id,
         event.sessionToken,
       );
-      emit(state.copyWith(activeDownload: job));
-      if ({
-        'completed',
-        'failed',
-        'handed_off',
-        'unknown',
-      }.contains(job.status)) {
-        _statusTimer?.cancel();
-      }
+      emit(state.copyWith(downloads: _withJob(state.downloads, job)));
+      _syncPolling(event.bridgeUrl, event.sessionToken);
     } catch (error) {
       await _invalidateUnauthorized(error);
       // Keep the last known state while a single status poll is unavailable.

@@ -40,6 +40,27 @@ _MIGRATIONS = {
         )""",
         "CREATE INDEX invites_created_by_idx ON invites(created_by)",
     ),
+    2: (
+        """CREATE TABLE download_jobs (
+            job_id TEXT PRIMARY KEY,
+            owner_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+            slug TEXT NOT NULL,
+            info TEXT NOT NULL DEFAULT '',
+            download_dir TEXT NOT NULL DEFAULT '',
+            client TEXT NOT NULL DEFAULT 'pending',
+            status TEXT NOT NULL DEFAULT 'preparing',
+            phase TEXT NOT NULL DEFAULT 'preparing',
+            message TEXT,
+            progress DOUBLE PRECISION,
+            downloaded_bytes BIGINT NOT NULL DEFAULT 0,
+            total_bytes BIGINT,
+            download_speed BIGINT NOT NULL DEFAULT 0,
+            eta_seconds BIGINT,
+            created_at DOUBLE PRECISION NOT NULL,
+            updated_at DOUBLE PRECISION NOT NULL
+        )""",
+        "CREATE INDEX download_jobs_owner_idx ON download_jobs(owner_id, updated_at DESC)",
+    ),
 }
 
 
@@ -276,3 +297,150 @@ class AuthStore:
             "username": username.strip(),
             "role": "member",
         }
+
+    def create_download_job(
+        self,
+        *,
+        job_id: str,
+        owner_id: str,
+        slug: str,
+        info: str = "",
+        download_dir: str = "",
+        client: str = "pending",
+        status: str = "preparing",
+        phase: str = "preparing",
+        message: str | None = "Preparing torrent metadata.",
+        progress: float | None = None,
+        downloaded_bytes: int = 0,
+        total_bytes: int | None = None,
+        download_speed: int = 0,
+        eta_seconds: int | None = None,
+        created_at: float | None = None,
+        updated_at: float | None = None,
+    ) -> dict[str, Any]:
+        now = time.time()
+        c_at = created_at if created_at is not None else now
+        u_at = updated_at if updated_at is not None else now
+        with self._connect() as connection:
+            connection.execute(
+                """INSERT INTO download_jobs
+                   (job_id, owner_id, slug, info, download_dir, client,
+                    status, phase, message, progress, downloaded_bytes,
+                    total_bytes, download_speed, eta_seconds, created_at, updated_at)
+                   VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)""",
+                (
+                    job_id,
+                    owner_id,
+                    slug,
+                    info,
+                    download_dir,
+                    client,
+                    status,
+                    phase,
+                    message,
+                    progress,
+                    downloaded_bytes,
+                    total_bytes,
+                    download_speed,
+                    eta_seconds,
+                    c_at,
+                    u_at,
+                ),
+            )
+        return {
+            "job_id": job_id,
+            "owner_id": owner_id,
+            "slug": slug,
+            "info": info,
+            "download_dir": download_dir,
+            "client": client,
+            "status": status,
+            "phase": phase,
+            "message": message,
+            "progress": progress,
+            "downloaded_bytes": downloaded_bytes,
+            "total_bytes": total_bytes,
+            "download_speed": download_speed,
+            "eta_seconds": eta_seconds,
+            "created_at": c_at,
+            "updated_at": u_at,
+        }
+
+    def update_download_job(
+        self,
+        job_id: str,
+        *,
+        updated_at: float | None = None,
+        **updates: Any,
+    ) -> None:
+        allowed_columns = {
+            "slug",
+            "info",
+            "download_dir",
+            "client",
+            "status",
+            "phase",
+            "message",
+            "progress",
+            "downloaded_bytes",
+            "total_bytes",
+            "download_speed",
+            "eta_seconds",
+        }
+        filtered_updates = {k: v for k, v in updates.items() if k in allowed_columns}
+        if not filtered_updates:
+            return
+        filtered_updates["updated_at"] = (
+            updated_at if updated_at is not None else time.time()
+        )
+        set_clauses = [f"{col} = %s" for col in filtered_updates.keys()]
+        values = list(filtered_updates.values()) + [job_id]
+        with self._connect() as connection:
+            connection.execute(
+                f"UPDATE download_jobs SET {', '.join(set_clauses)} WHERE job_id = %s",
+                tuple(values),
+            )
+
+    def get_download_job(
+        self, job_id: str, owner_id: str | None = None
+    ) -> dict[str, Any] | None:
+        with self._connect() as connection:
+            if owner_id is not None:
+                row = connection.execute(
+                    "SELECT * FROM download_jobs WHERE job_id = %s AND owner_id = %s",
+                    (job_id, owner_id),
+                ).fetchone()
+            else:
+                row = connection.execute(
+                    "SELECT * FROM download_jobs WHERE job_id = %s",
+                    (job_id,),
+                ).fetchone()
+        return row
+
+    def list_download_jobs(
+        self, owner_id: str, *, limit: int = 50, offset: int = 0
+    ) -> list[dict[str, Any]]:
+        with self._connect() as connection:
+            rows = connection.execute(
+                """SELECT * FROM download_jobs
+                   WHERE owner_id = %s
+                   ORDER BY updated_at DESC, created_at DESC, job_id DESC
+                   LIMIT %s OFFSET %s""",
+                (owner_id, limit, offset),
+            ).fetchall()
+        return rows
+
+    def reconcile_startup_jobs(self) -> int:
+        now = time.time()
+        with self._connect() as connection:
+            result = connection.execute(
+                """UPDATE download_jobs
+                   SET status = 'interrupted',
+                       phase = 'interrupted',
+                       message = 'Process stopped when the bridge restarted.',
+                       updated_at = %s
+                   WHERE status IN ('preparing', 'starting', 'running', 'queued', 'downloading')""",
+                (now,),
+            )
+            return result.rowcount
+
