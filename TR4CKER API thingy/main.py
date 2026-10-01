@@ -28,6 +28,12 @@ from torrentool.api import Torrent
 from auth_api import create_auth_api
 from auth_store import AuthStore
 from download_progress import normalize_aria2_status
+from legal_books import (
+    LegalBooksError,
+    download_legal_book,
+    search_legal_books,
+    validate_download_request,
+)
 from libgen_api_enhanced import LibgenSearch
 
 logging.basicConfig(level=logging.INFO)
@@ -58,6 +64,10 @@ class LaunchTorrentBody(BaseModel):
     """Optional launch payload. `library` defaults to `audiobooks` when omitted and chooses between the configured folder targets."""
 
     library: str = "audiobooks"
+
+
+class LegalBookDownloadBody(BaseModel):
+    format: str
 
 
 class BookSearchFilters(BaseModel):
@@ -561,6 +571,93 @@ def search_books(
         ) from exc
     print(f"Book search results count: {len(titles)} for filters: {filters}")
     return {"filters": filters, "results": titles}
+
+
+@app.get("/api/books/free/search")
+def search_free_books(
+    q: str = Query(..., min_length=2, max_length=120),
+    lang: str = Query("fr", min_length=2, max_length=2),
+    _credentials: Dict[str, Any] = Depends(require_api_credentials),
+) -> Dict[str, Any]:
+    try:
+        results = search_legal_books(q, language=lang)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    except LegalBooksError as exc:
+        logger.warning("Legal-book catalog request failed: %s", exc)
+        raise HTTPException(
+            status_code=502,
+            detail="The legal-book catalog is temporarily unavailable.",
+        ) from exc
+    return {"language": lang.lower(), "results": results}
+
+
+def _prepare_legal_book_download(
+    job_id: str, volume_id: str, file_format: str
+) -> None:
+    try:
+        books_dir = resolve_download_dir("books")
+        saved_path = download_legal_book(volume_id, file_format, books_dir)
+        size = saved_path.stat().st_size
+        update_download_job(
+            job_id,
+            info=saved_path.stem,
+            download_dir=str(saved_path.parent),
+            client="project_gutenberg",
+            status="completed",
+            phase="completed",
+            message=f"Saved {saved_path.name}",
+            progress=1.0,
+            downloaded_bytes=size,
+            total_bytes=size,
+        )
+    except FileExistsError:
+        update_download_job(
+            job_id,
+            status="failed",
+            phase="failed",
+            message="This book format is already saved in the Books folder.",
+        )
+    except Exception:
+        logger.exception("Could not save legal book for job_id=%s", job_id)
+        update_download_job(
+            job_id,
+            status="failed",
+            phase="failed",
+            message="Could not verify or save this book. Check the bridge logs.",
+        )
+
+
+@app.post("/api/books/free/{book_id}/download", status_code=202)
+def download_free_book(
+    book_id: str,
+    background_tasks: BackgroundTasks,
+    body: LegalBookDownloadBody,
+    credentials: Dict[str, Any] = Depends(require_api_credentials),
+) -> Dict[str, Any]:
+    try:
+        validate_download_request(book_id, body.format)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+    books_dir = resolve_download_dir("books")
+    job = register_download_job(
+        owner_id=credentials["user_id"],
+        slug=book_id,
+        info=f"Project Gutenberg {book_id}",
+        download_dir=str(books_dir),
+        client="project_gutenberg",
+        status="preparing",
+        phase="preparing",
+        message="Verifying the EPUB listing and preparing the file.",
+    )
+    background_tasks.add_task(
+        _prepare_legal_book_download,
+        job["job_id"],
+        book_id,
+        body.format,
+    )
+    return public_download_job(job)
 
 
 @app.get("/api/torrents/{slug}")

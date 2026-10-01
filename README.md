@@ -12,6 +12,8 @@ This workspace contains two connected parts:
 ## Features
 
 - Search and browse torrent results from TR4CKER.
+- Search books separately in the Free books catalog; only books marked public domain for France with a direct supported format are offered.
+- Save eligible EPUB/PDF books to the bridge computer's configured Books folder and see them in download history.
 - Download `.torrent` files from the bridge.
 - Launch torrent files from the configured command, an installed client, or `aria2c`.
 - Persist the bridge URL in the mobile settings.
@@ -44,6 +46,7 @@ python main.py
 ```
 
 The service expects a `TR4CKER_API_KEY` in the environment or an `.env` file.
+The separate Free books search also requires `GOOGLE_BOOKS_API_KEY` in the bridge `.env`; Google Books applies region-specific access based on the bridge server's IP.
 
 ## Docker
 

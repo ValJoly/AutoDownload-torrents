@@ -6,6 +6,7 @@ import 'package:go_router/go_router.dart';
 
 import '../presentation/screens/auth_screen.dart';
 import '../presentation/screens/downloads_screen.dart';
+import '../presentation/screens/free_books_screen.dart';
 import '../presentation/screens/invite_management_screen.dart';
 import '../presentation/bloc/torrent_bloc.dart';
 import '../presentation/screens/torrent_home_page.dart';
@@ -67,6 +68,10 @@ class AppRouter {
             GoRoute(
               path: '/downloads',
               builder: (context, state) => DownloadsScreen(session: session),
+            ),
+            GoRoute(
+              path: '/free-books',
+              builder: (context, state) => FreeBooksScreen(session: session),
             ),
           ],
         ),

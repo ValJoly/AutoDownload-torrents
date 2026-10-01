@@ -126,6 +126,15 @@ class DownloadJob {
   }.contains(status);
 
   String get label {
+    if (client == 'project_gutenberg') {
+      if (status == 'completed') return 'Book saved to Books folder';
+      if (status == 'failed') return 'Book download failed';
+      if (status == 'preparing' ||
+          status == 'starting' ||
+          status == 'running') {
+        return 'Preparing legal book download';
+      }
+    }
     if (status == 'completed') return 'Download completed';
     if (status == 'failed') return 'Download failed';
     if (status == 'interrupted') {
@@ -151,6 +160,51 @@ class DownloadJob {
         return message ?? 'Starting download';
     }
   }
+}
+
+class LegalBook {
+  const LegalBook({
+    required this.id,
+    required this.title,
+    required this.formats,
+    this.authors = const [],
+    this.publishedDate = '',
+    this.description = '',
+    this.languages = const [],
+    this.copyright,
+    this.source = 'Project Gutenberg',
+    this.previewLink,
+  });
+
+  final String id;
+  final String title;
+  final List<String> authors;
+  final String publishedDate;
+  final String description;
+  final List<String> languages;
+  final bool? copyright;
+  final String source;
+  final List<String> formats;
+  final String? previewLink;
+
+  factory LegalBook.fromJson(Map<String, dynamic> json) => LegalBook(
+    id: '${json['id'] ?? ''}',
+    title: '${json['title'] ?? 'Untitled'}',
+    authors: (json['authors'] as List? ?? const [])
+        .whereType<String>()
+        .toList(),
+    publishedDate: '${json['published_date'] ?? ''}',
+    description: '${json['description'] ?? ''}',
+    languages: (json['languages'] as List? ?? const [])
+        .whereType<String>()
+        .toList(),
+    copyright: json['copyright'] as bool?,
+    source: '${json['source'] ?? 'Project Gutenberg'}',
+    formats: (json['formats'] as List? ?? const [])
+        .whereType<String>()
+        .toList(),
+    previewLink: json['preview_link'] as String?,
+  );
 }
 
 DateTime? _parseEpochSeconds(dynamic value) {
@@ -425,6 +479,88 @@ class BridgeApi {
       throw BridgeException(
         'The bridge search timed out. Check the bridge address and server.',
       );
+    } finally {
+      client.close();
+    }
+  }
+
+  Future<List<LegalBook>> searchLegalBooks(
+    String bridgeUrl,
+    String query,
+    String language,
+    String sessionToken,
+  ) async {
+    final uri = Uri.parse('${_base(bridgeUrl)}/api/books/free/search')
+        .replace(queryParameters: {'q': query.trim(), 'lang': language});
+    final client = _clientFactory();
+    try {
+      final response = await client
+          .get(uri, headers: _authHeaders(sessionToken))
+          .timeout(
+            const Duration(seconds: 25),
+            onTimeout: () => throw TimeoutException(
+              'The legal-books search timed out.',
+              const Duration(seconds: 25),
+            ),
+          );
+      final data = _decode(response);
+      if (data is! Map<String, dynamic> || data['results'] is! List) {
+        throw BridgeException(
+          'The bridge returned an unexpected legal-books response.',
+        );
+      }
+      if (data['language'] != language) {
+        throw BridgeException(
+          'The bridge returned results for a different language.',
+        );
+      }
+      return (data['results'] as List)
+          .whereType<Map<String, dynamic>>()
+          .map(LegalBook.fromJson)
+          .toList();
+    } on TimeoutException {
+      throw BridgeException('The legal-books search timed out.');
+    } finally {
+      client.close();
+    }
+  }
+
+  Future<DownloadJob> downloadLegalBook(
+    String bridgeUrl,
+    String bookId,
+    String format,
+    String sessionToken,
+  ) async {
+    final uri = Uri.parse(
+      '${_base(bridgeUrl)}/api/books/free/${Uri.encodeComponent(bookId)}/download',
+    );
+    final client = _clientFactory();
+    try {
+      final response = await client
+          .post(
+            uri,
+            headers: {
+              'Content-Type': 'application/json',
+              ..._authHeaders(sessionToken),
+            },
+            body: jsonEncode({'format': format}),
+          )
+          .timeout(
+            const Duration(seconds: 12),
+            onTimeout: () => throw TimeoutException(
+              'The legal-book download request timed out.',
+              const Duration(seconds: 12),
+            ),
+          );
+      final data = _decode(response);
+      if (data is! Map<String, dynamic>) {
+        throw BridgeException(
+          'The bridge returned an unexpected book-download response.',
+        );
+      }
+      return DownloadJob.fromJson(data);
+    } on TimeoutException {
+      throw BridgeException('The legal-book download request timed out.');
     } finally {
       client.close();
     }

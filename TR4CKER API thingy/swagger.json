@@ -27,6 +27,95 @@
         }
       }
     },
+    "/api/books/free/search": {
+      "get": {
+        "summary": "Search Free Books",
+        "description": "Search Project Gutenberg through Gutendex. Language defaults to French. If Gutendex times out or returns no matches and GOOGLE_BOOKS_API_KEY is configured, Google Books preview-only results are returned. Only Gutendex EPUBs can be downloaded by the bridge. Copyright metadata reflects US status only and is not a rights determination for other countries.",
+        "operationId": "search_free_books_api_books_free_search_get",
+        "parameters": [
+          {
+            "name": "q",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 2,
+              "maxLength": 120,
+              "title": "Q"
+            }
+          },
+          {
+            "name": "lang",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": ["fr", "en", "es", "de", "it", "pt"],
+              "default": "fr",
+              "title": "Lang"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Search results",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "language": {"type": "string"},
+                    "results": {
+                      "type": "array",
+                      "items": {"type": "object", "additionalProperties": true}
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Invalid query or unsupported language"
+          },
+          "502": {
+            "description": "The book catalog is temporarily unavailable"
+          }
+        }
+      }
+    },
+    "/api/books/free/{book_id}/download": {
+      "post": {
+        "summary": "Download Free Book EPUB",
+        "description": "Re-fetch the Gutendex book record, verify the official EPUB URL, and save the EPUB under the configured Books folder. The bridge does not accept a client-supplied URL.",
+        "operationId": "download_free_book_api_books_free__book_id__download_post",
+        "parameters": [
+          {
+            "name": "book_id",
+            "in": "path",
+            "required": true,
+            "schema": {"type": "string", "pattern": "^[0-9]{1,8}$"}
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["format"],
+                "properties": {
+                  "format": {"type": "string", "enum": ["epub"]}
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {"description": "Download job accepted"},
+          "422": {"description": "Invalid book ID or format"}
+        }
+      }
+    },
     "/api/torrents": {
       "get": {
         "summary": "Search Torrents",

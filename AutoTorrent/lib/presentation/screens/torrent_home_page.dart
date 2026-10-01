@@ -119,6 +119,11 @@ class _TorrentHomePageState extends State<TorrentHomePage> {
                   child: const Icon(Icons.downloading_outlined),
                 ),
               ),
+              IconButton(
+                onPressed: () => context.push('/free-books'),
+                tooltip: 'Free books',
+                icon: const Icon(Icons.menu_book_outlined),
+              ),
               if (widget.session.isOwner)
                 IconButton(
                   onPressed: () => context.go('/invites'),
@@ -168,19 +173,19 @@ class _TorrentHomePageState extends State<TorrentHomePage> {
                         ),
                       ),
                       const SizedBox(height: 13),
-                      Row(
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 4,
                         children: [
                           const Icon(
                             Icons.folder_outlined,
                             size: 18,
                             color: Colors.black54,
                           ),
-                          const SizedBox(width: 8),
                           Text(
                             'Save & Search',
                             style: theme.textTheme.labelLarge,
                           ),
-                          const SizedBox(width: 8),
                           ChoiceChip(
                             selectedColor: theme.colorScheme.primary,
                             backgroundColor: Colors.transparent,
@@ -209,7 +214,6 @@ class _TorrentHomePageState extends State<TorrentHomePage> {
                               );
                             },
                           ),
-                          const SizedBox(width: 8),
                           ChoiceChip(
                             selectedColor: theme.colorScheme.primary,
                             backgroundColor: Colors.transparent,

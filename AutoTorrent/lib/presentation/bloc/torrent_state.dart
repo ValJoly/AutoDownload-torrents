@@ -8,6 +8,7 @@ class TorrentState extends Equatable {
     this.loading = false,
     this.library = 'audiobooks',
     this.results = const [],
+    this.legalResults = const [],
     this.error,
     this.downloads = const [],
     this.downloadsLoading = false,
@@ -17,6 +18,7 @@ class TorrentState extends Equatable {
   final bool loading;
   final String library;
   final List<TorrentItem> results;
+  final List<LegalBook> legalResults;
   final String? error;
   final List<DownloadJob> downloads;
   final bool downloadsLoading;
@@ -31,6 +33,7 @@ class TorrentState extends Equatable {
     bool? loading,
     String? library,
     List<TorrentItem>? results,
+    List<LegalBook>? legalResults,
     String? error,
     List<DownloadJob>? downloads,
     bool? downloadsLoading,
@@ -40,6 +43,7 @@ class TorrentState extends Equatable {
       loading: loading ?? this.loading,
       library: library ?? this.library,
       results: results ?? this.results,
+      legalResults: legalResults ?? this.legalResults,
       error: error,
       downloads: downloads ?? this.downloads,
       downloadsLoading: downloadsLoading ?? this.downloadsLoading,
@@ -52,6 +56,7 @@ class TorrentState extends Equatable {
     loading,
     library,
     results,
+    legalResults,
     error,
     downloads,
     downloadsLoading,

@@ -47,6 +47,7 @@ TORRENT_HOST_DOWNLOAD_DIR=I:/Books
 Supported variables:
 
 - `TR4CKER_API_KEY` — required.
+- `GOOGLE_BOOKS_API_KEY` — optional. Used only for preview-only search fallback when Gutendex times out or has no matching results.
 - `TR4CKER_API_DUAL_STACK` — enable IPv4 and IPv6 listeners together.
 - `TR4CKER_API_IPV6_HOST` — IPv6 bind address for the IPv6 listener.
 - `TR4CKER_API_IPV4_HOST` — IPv4 bind address for the IPv4 listener.
@@ -179,6 +180,8 @@ Backend tests use an isolated PostgreSQL database; set
 - `GET /api/books/search` — search books with the supplied filter map.
 - `GET /api/torrents/{slug}` — fetch torrent detail metadata.
 - `GET /api/torrents/{slug}/download` — stream the `.torrent` file.
+- `GET /api/books/free/search?q={query}&lang={language}` — search Gutendex first; `lang` defaults to `fr` and supports `fr`, `en`, `es`, `de`, `it`, or `pt`. If Gutendex is slow or returns no matches and `GOOGLE_BOOKS_API_KEY` is configured, return Google Books preview results as a fallback.
+- `POST /api/books/free/{book_id}/download` with `{"format":"epub"}` — revalidate the Gutendex record and save its EPUB under the configured Books folder. Jobs appear in the authenticated user's downloads history. The bridge never accepts a client-supplied download URL.
 - `POST /api/torrents/{slug}/launch` — download the `.torrent` file and attempt to launch a local client. This route and other `/api` routes require a bearer session.
 - `GET /api/downloads?limit=50&offset=0` — list the authenticated user's saved download jobs, newest-updated first. `limit` must be between 1 and 100; `offset` is zero-based.
 - `GET /api/downloads/{job_id}` — fetch the latest progress for a job owned by the authenticated user.
@@ -193,6 +196,15 @@ that do not provide telemetry. Job details are persisted in PostgreSQL and can
 be listed after the Flutter app is reopened. A bridge restart marks jobs that
 were still active as interrupted; it does not resume their torrent-client
 processes.
+
+The separate Free books catalog tries Gutendex first and defaults to French;
+English, Spanish, German, Italian, and Portuguese are also available. If
+Gutendex times out or has no matches, the bridge can use Google Books for
+preview-only results when `GOOGLE_BOOKS_API_KEY` is configured. Only Gutendex
+records with an EPUB are saved locally; the bridge re-fetches the record and
+validates the provider URL and downloaded file. Project Gutenberg's copyright
+flag reflects US status only and is not a determination of rights in other
+countries.
 
 ## Notes
 

@@ -57,6 +57,85 @@ void main() {
     },
   );
 
+  test(
+    'legal book search sends language and parses Gutendex metadata',
+    () async {
+      late http.Request capturedRequest;
+      final api = BridgeApi(
+        clientFactory: () => MockClient((request) async {
+          capturedRequest = request;
+          return http.Response(
+            jsonEncode({
+              'language': 'fr',
+              'results': [
+                {
+                  'id': '1342',
+                  'title': 'Les Misérables',
+                  'authors': ['Victor Hugo'],
+                  'published_date': '1862',
+                  'languages': ['fr'],
+                  'copyright': false,
+                  'source': 'Google Books',
+                  'formats': ['epub'],
+                },
+              ],
+            }),
+            200,
+          );
+        }),
+      );
+
+      final results = await api.searchLegalBooks(
+        'http://bridge.local',
+        'Victor Hugo',
+        'fr',
+        'session-token',
+      );
+
+      expect(capturedRequest.url.path, '/api/books/free/search');
+      expect(capturedRequest.url.queryParameters['q'], 'Victor Hugo');
+      expect(capturedRequest.url.queryParameters['lang'], 'fr');
+      expect(capturedRequest.headers['authorization'], 'Bearer session-token');
+      expect(results.single.title, 'Les Misérables');
+      expect(results.single.languages, ['fr']);
+      expect(results.single.copyright, isFalse);
+      expect(results.single.source, 'Google Books');
+      expect(results.single.formats, ['epub']);
+    },
+  );
+
+  test('legal book download submits only ID and format', () async {
+    late http.Request capturedRequest;
+    final api = BridgeApi(
+      clientFactory: () => MockClient((request) async {
+        capturedRequest = request;
+        return http.Response(
+          jsonEncode({
+            'job_id': 'job-legal-1',
+            'slug': 'volume-1',
+            'client': 'project_gutenberg',
+            'status': 'preparing',
+            'phase': 'preparing',
+          }),
+          202,
+        );
+      }),
+    );
+
+    final job = await api.downloadLegalBook(
+      'http://bridge.local',
+      'volume-1',
+      'epub',
+      'session-token',
+    );
+
+    expect(capturedRequest.method, 'POST');
+    expect(capturedRequest.url.path, '/api/books/free/volume-1/download');
+    expect(jsonDecode(capturedRequest.body), {'format': 'epub'});
+    expect(capturedRequest.headers['authorization'], 'Bearer session-token');
+    expect(job.client, 'project_gutenberg');
+  });
+
   test('download job parses determinate aria2 progress details', () {
     final job = DownloadJob.fromJson({
       'job_id': 'job-1',
@@ -97,6 +176,22 @@ void main() {
       expect(job.label, contains('progress is unavailable'));
     },
   );
+
+  test('legal book jobs use direct-download status labels', () {
+    final preparing = DownloadJob.fromJson({
+      'job_id': 'legal-job',
+      'client': 'project_gutenberg',
+      'status': 'preparing',
+    });
+    final completed = DownloadJob.fromJson({
+      'job_id': 'legal-job',
+      'client': 'project_gutenberg',
+      'status': 'completed',
+    });
+
+    expect(preparing.label, 'Preparing legal book download');
+    expect(completed.label, 'Book saved to Books folder');
+  });
 
   test('listDownloads fetches every page with bearer authentication', () async {
     final requests = <http.Request>[];

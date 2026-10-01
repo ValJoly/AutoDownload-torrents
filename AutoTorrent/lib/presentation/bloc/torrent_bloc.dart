@@ -14,9 +14,11 @@ class TorrentBloc extends Bloc<TorrentEvent, TorrentState> {
     String? initialSessionToken,
   }) : super(const TorrentState()) {
     on<SearchRequested>(_onSearchRequested);
+    on<LegalBooksSearchRequested>(_onLegalBooksSearchRequested);
     on<SearchValidationFailed>(_onSearchValidationFailed);
     on<LibraryChanged>(_onLibraryChanged);
     on<LaunchRequested>(_onLaunchRequested);
+    on<LegalBookDownloadRequested>(_onLegalBookDownloadRequested);
     on<DownloadStatusRequested>(_onDownloadStatusRequested);
     on<DownloadsFetched>(_onDownloadsFetched);
     if (initialBridgeUrl?.isNotEmpty == true &&
@@ -131,6 +133,32 @@ class TorrentBloc extends Bloc<TorrentEvent, TorrentState> {
     }
   }
 
+  Future<void> _onLegalBooksSearchRequested(
+    LegalBooksSearchRequested event,
+    Emitter<TorrentState> emit,
+  ) async {
+    emit(state.copyWith(loading: true, error: null, legalResults: const []));
+    try {
+      final results = await _api.searchLegalBooks(
+        event.bridgeUrl,
+        event.query,
+        event.language,
+        event.sessionToken,
+      );
+      emit(state.copyWith(loading: false, legalResults: results, error: null));
+    } catch (error) {
+      await _invalidateUnauthorized(error);
+      emit(
+        state.copyWith(
+          loading: false,
+          error: error is BridgeException
+              ? error.message
+              : 'Could not search the legal-books catalog.',
+        ),
+      );
+    }
+  }
+
   void _onSearchValidationFailed(
     SearchValidationFailed event,
     Emitter<TorrentState> emit,
@@ -170,6 +198,32 @@ class TorrentBloc extends Bloc<TorrentEvent, TorrentState> {
       if (error is! BridgeException || error.statusCode != 401) {
         add(DownloadsFetched(event.bridgeUrl, event.sessionToken));
       }
+    }
+  }
+
+  Future<void> _onLegalBookDownloadRequested(
+    LegalBookDownloadRequested event,
+    Emitter<TorrentState> emit,
+  ) async {
+    emit(state.copyWith(error: null));
+    try {
+      final job = await _api.downloadLegalBook(
+        event.bridgeUrl,
+        event.book.id,
+        event.format,
+        event.sessionToken,
+      );
+      emit(state.copyWith(downloads: _withJob(state.downloads, job)));
+      _syncPolling(event.bridgeUrl, event.sessionToken);
+    } catch (error) {
+      await _invalidateUnauthorized(error);
+      emit(
+        state.copyWith(
+          error: error is BridgeException
+              ? error.message
+              : 'Could not start the book download on the bridge.',
+        ),
+      );
     }
   }
 

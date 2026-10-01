@@ -3,18 +3,31 @@ import 'package:auto_torrent/data/api/bridge_api.dart';
 import 'package:auto_torrent/presentation/bloc/torrent_bloc.dart';
 import 'package:auto_torrent/presentation/bloc/torrent_event.dart';
 import 'package:auto_torrent/presentation/screens/downloads_screen.dart';
+import 'package:auto_torrent/presentation/screens/free_books_screen.dart';
 import 'package:auto_torrent/presentation/screens/torrent_home_page.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:go_router/go_router.dart';
 
 class _DownloadsApi extends BridgeApi {
-  _DownloadsApi(this.downloads, {this.error});
+  _DownloadsApi(
+    this.downloads, {
+    this.error,
+    this.legalBooks = const [],
+    this.legalBookJob,
+  });
 
   final List<DownloadJob> downloads;
+  final List<LegalBook> legalBooks;
+  final DownloadJob? legalBookJob;
   Object? error;
   String? requestedBridgeUrl;
   String? requestedSessionToken;
+  String? searchedLegalBookQuery;
+  String? searchedLegalBookLanguage;
+  String? downloadedLegalBookId;
+  String? downloadedLegalBookFormat;
 
   @override
   Future<List<DownloadJob>> listDownloads(
@@ -26,9 +39,72 @@ class _DownloadsApi extends BridgeApi {
     if (error != null) throw error!;
     return downloads;
   }
+
+  @override
+  Future<List<LegalBook>> searchLegalBooks(
+    String bridgeUrl,
+    String query,
+    String language,
+    String sessionToken,
+  ) async {
+    searchedLegalBookQuery = query;
+    searchedLegalBookLanguage = language;
+    return legalBooks;
+  }
+
+  @override
+  Future<DownloadJob> downloadLegalBook(
+    String bridgeUrl,
+    String bookId,
+    String format,
+    String sessionToken,
+  ) async {
+    downloadedLegalBookId = bookId;
+    downloadedLegalBookFormat = format;
+    return legalBookJob!;
+  }
 }
 
 void main() {
+  testWidgets('home opens free books as a separate destination', (
+    tester,
+  ) async {
+    final api = _DownloadsApi(const []);
+    final session = AuthSession(api: api)
+      ..bridgeUrl = 'http://bridge.local'
+      ..accessToken = 'session-token';
+    final router = GoRouter(
+      initialLocation: '/',
+      routes: [
+        GoRoute(
+          path: '/',
+          builder: (context, state) => TorrentHomePage(session: session),
+        ),
+        GoRoute(
+          path: '/free-books',
+          builder: (context, state) => FreeBooksScreen(session: session),
+        ),
+      ],
+    );
+
+    await tester.pumpWidget(
+      BlocProvider(
+        create: (_) => TorrentBloc(api),
+        child: MaterialApp.router(routerConfig: router),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('Audiobooks'), findsOneWidget);
+    expect(find.text('Books'), findsOneWidget);
+    expect(find.text('Free books'), findsNothing);
+    await tester.tap(find.byTooltip('Free books'));
+    await tester.pumpAndSettle();
+
+    expect(find.byType(FreeBooksScreen), findsOneWidget);
+    expect(find.text('Project Gutenberg'), findsOneWidget);
+    router.dispose();
+  });
+
   test(
     'loads saved downloads when created with an authenticated session',
     () async {
@@ -85,6 +161,76 @@ void main() {
     expect(state.downloadsError, 'History is temporarily unavailable.');
     await bloc.close();
   });
+
+  test('legal search keeps results separate from torrent results', () async {
+    final api = _DownloadsApi(
+      const [],
+      legalBooks: const [
+        LegalBook(
+          id: 'volume-1',
+          title: 'Les Misérables',
+          languages: ['fr'],
+          formats: ['epub'],
+        ),
+      ],
+    );
+    final bloc = TorrentBloc(api);
+    bloc.add(
+      const LegalBooksSearchRequested(
+        'http://bridge.local',
+        'Victor Hugo',
+        'fr',
+        'session-token',
+      ),
+    );
+
+    final state = await bloc.stream.firstWhere(
+      (state) => state.legalResults.isNotEmpty,
+    );
+
+    expect(api.searchedLegalBookQuery, 'Victor Hugo');
+    expect(state.legalResults.single.id, 'volume-1');
+    expect(state.results, isEmpty);
+    await bloc.close();
+  });
+
+  test(
+    'legal book action requests a direct format and tracks its job',
+    () async {
+      final api = _DownloadsApi(
+        const [],
+        legalBookJob: const DownloadJob(
+          id: 'legal-job-1',
+          slug: 'volume-1',
+          client: 'project_gutenberg',
+          status: 'preparing',
+        ),
+      );
+      const book = LegalBook(
+        id: 'volume-1',
+        title: 'Les Misérables',
+        formats: ['epub'],
+      );
+      final bloc = TorrentBloc(api);
+      bloc.add(
+        const LegalBookDownloadRequested(
+          'http://bridge.local',
+          book,
+          'epub',
+          'session-token',
+        ),
+      );
+
+      final state = await bloc.stream.firstWhere(
+        (state) => state.downloads.any((job) => job.id == 'legal-job-1'),
+      );
+
+      expect(api.downloadedLegalBookId, 'volume-1');
+      expect(api.downloadedLegalBookFormat, 'epub');
+      expect(state.downloads.single.client, 'project_gutenberg');
+      await bloc.close();
+    },
+  );
 
   testWidgets('history page shows each saved download and its status', (
     tester,
@@ -215,4 +361,147 @@ void main() {
     expect(find.text('1'), findsOneWidget);
     expect(find.byTooltip('Download history'), findsOneWidget);
   });
+
+  testWidgets('Free books defaults to French and shows Gutendex EPUB actions', (
+    tester,
+  ) async {
+    final api = _DownloadsApi(
+      const [],
+      legalBooks: const [
+        LegalBook(
+          id: 'volume-1',
+          title: 'Les Misérables',
+          authors: ['Victor Hugo'],
+          publishedDate: '1862',
+          languages: ['fr'],
+          copyright: false,
+          previewLink: 'https://www.gutenberg.org/ebooks/1342',
+          formats: ['epub'],
+        ),
+      ],
+    );
+    final session = AuthSession(api: api)
+      ..bridgeUrl = 'http://bridge.local'
+      ..accessToken = 'session-token';
+
+    await tester.pumpWidget(
+      BlocProvider(
+        create: (_) => TorrentBloc(
+          api,
+          initialBridgeUrl: session.bridgeUrl,
+          initialSessionToken: session.accessToken,
+        ),
+        child: MaterialApp(home: FreeBooksScreen(session: session)),
+      ),
+    );
+    await tester.pump();
+
+    expect(find.text('French'), findsOneWidget);
+    await tester.tap(find.text('French'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Spanish').last);
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byType(TextField), 'Victor Hugo');
+    await tester.tap(find.byIcon(Icons.arrow_forward_rounded));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 100));
+
+    expect(api.searchedLegalBookQuery, 'Victor Hugo');
+    expect(api.searchedLegalBookLanguage, 'es');
+    expect(find.text('Les Misérables'), findsOneWidget);
+    expect(find.text('Project Gutenberg · French'), findsOneWidget);
+    expect(
+      find.text('Catalog marks this book as public domain in the US.'),
+      findsOneWidget,
+    );
+    expect(find.text('Open in Project Gutenberg'), findsOneWidget);
+    expect(find.text('Download EPUB to computer'), findsOneWidget);
+    expect(find.text('Download to computer'), findsNothing);
+  });
+
+  testWidgets('EPUB action uses direct book download, not torrent launch', (
+    tester,
+  ) async {
+    const book = LegalBook(
+      id: 'volume-1',
+      title: 'Les Misérables',
+      formats: ['epub'],
+    );
+    final api = _DownloadsApi(
+      const [],
+      legalBooks: const [book],
+      legalBookJob: const DownloadJob(
+        id: 'legal-job-1',
+        slug: 'volume-1',
+        client: 'project_gutenberg',
+        status: 'preparing',
+      ),
+    );
+    final session = AuthSession(api: api)
+      ..bridgeUrl = 'http://bridge.local'
+      ..accessToken = 'session-token';
+
+    await tester.pumpWidget(
+      BlocProvider(
+        create: (_) => TorrentBloc(
+          api,
+          initialBridgeUrl: session.bridgeUrl,
+          initialSessionToken: session.accessToken,
+        ),
+        child: MaterialApp(home: FreeBooksScreen(session: session)),
+      ),
+    );
+    await tester.pump();
+    await tester.enterText(find.byType(TextField), 'Victor Hugo');
+    await tester.tap(find.byIcon(Icons.arrow_forward_rounded));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 100));
+    await tester.tap(find.text('Download EPUB to computer'));
+    await tester.pump();
+
+    expect(api.downloadedLegalBookId, 'volume-1');
+    expect(api.downloadedLegalBookFormat, 'epub');
+    expect(
+      find.text('Book download added to download history.'),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets(
+    'Google fallback books open their source page without local EPUB',
+    (tester) async {
+      final api = _DownloadsApi(
+        const [],
+        legalBooks: const [
+          LegalBook(
+            id: 'google-volume-1',
+            title: 'Les Misérables',
+            authors: ['Victor Hugo'],
+            languages: ['fr'],
+            source: 'Google Books',
+            previewLink: 'https://books.google.com/books?id=google-volume-1',
+            formats: [],
+          ),
+        ],
+      );
+      final session = AuthSession(api: api)
+        ..bridgeUrl = 'http://bridge.local'
+        ..accessToken = 'session-token';
+
+      await tester.pumpWidget(
+        BlocProvider(
+          create: (_) => TorrentBloc(api),
+          child: MaterialApp(home: FreeBooksScreen(session: session)),
+        ),
+      );
+      await tester.enterText(find.byType(TextField), 'Victor Hugo');
+      await tester.tap(find.byTooltip('Search free books'));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 100));
+
+      expect(find.text('Google Books · French'), findsOneWidget);
+      expect(find.text('Open in Google Books'), findsOneWidget);
+      expect(find.text('Download EPUB to computer'), findsNothing);
+    },
+  );
 }

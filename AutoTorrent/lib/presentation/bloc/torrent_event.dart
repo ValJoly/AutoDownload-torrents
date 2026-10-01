@@ -27,6 +27,23 @@ class SearchRequested extends TorrentEvent {
   List<Object?> get props => [bridgeUrl, query, library, sessionToken];
 }
 
+class LegalBooksSearchRequested extends TorrentEvent {
+  const LegalBooksSearchRequested(
+    this.bridgeUrl,
+    this.query,
+    this.language,
+    this.sessionToken,
+  );
+
+  final String bridgeUrl;
+  final String query;
+  final String language;
+  final String sessionToken;
+
+  @override
+  List<Object?> get props => [bridgeUrl, query, language, sessionToken];
+}
+
 class SearchValidationFailed extends TorrentEvent {
   const SearchValidationFailed(this.message);
 
@@ -60,6 +77,23 @@ class LaunchRequested extends TorrentEvent {
 
   @override
   List<Object?> get props => [bridgeUrl, torrent, library, sessionToken];
+}
+
+class LegalBookDownloadRequested extends TorrentEvent {
+  const LegalBookDownloadRequested(
+    this.bridgeUrl,
+    this.book,
+    this.format,
+    this.sessionToken,
+  );
+
+  final String bridgeUrl;
+  final LegalBook book;
+  final String format;
+  final String sessionToken;
+
+  @override
+  List<Object?> get props => [bridgeUrl, book, format, sessionToken];
 }
 
 class DownloadStatusRequested extends TorrentEvent {

@@ -228,6 +228,73 @@ class AuthApiTests(PostgresTestCase):
         self.assertEqual(login.status_code, 200)
         self.assertEqual(authorized.status_code, 404)
 
+    def test_legal_book_routes_require_auth_and_validate_format(self) -> None:
+        database_url, bridge_store, schema = self.create_store()
+        bridge_store.create_initial_owner(
+            user_id="legal-owner",
+            username="owner",
+            password_hash=hash_password("correct horse battery staple"),
+        )
+        with patch.dict(
+            os.environ,
+            {
+                "TR4CKER_API_KEY": "test-api-key",
+                "SKYFORGE_DATABASE_URL": database_url,
+                "SKYFORGE_DATABASE_SCHEMA": schema,
+            },
+        ):
+            import main
+
+            main = importlib.reload(main)
+            with patch.object(
+                main,
+                "search_legal_books",
+                return_value=[
+                    {
+                        "id": "1342",
+                        "title": "Sample Book",
+                        "authors": ["Sample Author"],
+                        "languages": ["fr"],
+                        "copyright": False,
+                        "formats": ["epub"],
+                    }
+                ],
+            ):
+                with TestClient(main.app) as client:
+                    unauthorized = client.get(
+                        "/api/books/free/search?q=sample"
+                    )
+                    login = client.post(
+                        "/api/auth/login",
+                        json={
+                            "username": "owner",
+                            "password": "correct horse battery staple",
+                        },
+                    )
+                    headers = {
+                        "Authorization": f"Bearer {login.json()['access_token']}"
+                    }
+                    search = client.get(
+                        "/api/books/free/search?q=sample&lang=fr", headers=headers
+                    )
+                    invalid_language = client.get(
+                        "/api/books/free/search?q=sample&lang=fr-CA",
+                        headers=headers,
+                    )
+                    invalid_format = client.post(
+                        "/api/books/free/1342/download",
+                        headers=headers,
+                        json={"format": "exe"},
+                    )
+
+        self.drop_schema(schema)
+        self.assertEqual(unauthorized.status_code, 401)
+        self.assertEqual(search.status_code, 200)
+        self.assertEqual(search.json()["language"], "fr")
+        self.assertEqual(search.json()["results"][0]["formats"], ["epub"])
+        self.assertEqual(invalid_language.status_code, 422)
+        self.assertEqual(invalid_format.status_code, 422)
+
     def test_launch_queues_preparation_and_returns_a_job_immediately(self) -> None:
         database_url, bridge_store, schema = self.create_store()
         bridge_store.create_initial_owner(
