@@ -61,6 +61,13 @@ _MIGRATIONS = {
         )""",
         "CREATE INDEX download_jobs_owner_idx ON download_jobs(owner_id, updated_at DESC)",
     ),
+    3: (
+        """CREATE TABLE download_job_cleanup_artifacts (
+            job_id TEXT NOT NULL REFERENCES download_jobs(job_id) ON DELETE CASCADE,
+            path TEXT NOT NULL,
+            PRIMARY KEY (job_id, path)
+        )""",
+    ),
 }
 
 
@@ -429,6 +436,41 @@ class AuthStore:
                 (owner_id, limit, offset),
             ).fetchall()
         return rows
+
+    def set_download_job_cleanup_artifacts(
+        self, job_id: str, paths: list[str]
+    ) -> None:
+        unique_paths = list(dict.fromkeys(paths))
+        with self._connect() as connection:
+            with connection.transaction():
+                connection.execute(
+                    "DELETE FROM download_job_cleanup_artifacts WHERE job_id = %s",
+                    (job_id,),
+                )
+                if unique_paths:
+                    for path in unique_paths:
+                        connection.execute(
+                            """INSERT INTO download_job_cleanup_artifacts (job_id, path)
+                               VALUES (%s, %s)""",
+                            (job_id, path),
+                        )
+
+    def list_completed_download_job_cleanup_artifacts(self) -> list[dict[str, str]]:
+        with self._connect() as connection:
+            return connection.execute(
+                """SELECT artifacts.job_id, jobs.download_dir, artifacts.path
+                   FROM download_job_cleanup_artifacts AS artifacts
+                   JOIN download_jobs AS jobs ON jobs.job_id = artifacts.job_id
+                   WHERE jobs.status = 'completed'
+                   ORDER BY artifacts.job_id, artifacts.path"""
+            ).fetchall()
+
+    def clear_download_job_cleanup_artifacts(self, job_id: str) -> None:
+        with self._connect() as connection:
+            connection.execute(
+                "DELETE FROM download_job_cleanup_artifacts WHERE job_id = %s",
+                (job_id,),
+            )
 
     def reconcile_startup_jobs(self) -> int:
         now = time.time()

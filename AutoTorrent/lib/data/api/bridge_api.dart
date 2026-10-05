@@ -448,10 +448,15 @@ class BridgeApi {
     String bridgeUrl,
     String query,
     String library,
-    String sessionToken,
-  ) async {
+    String sessionToken, {
+    String source = 'tr4cker',
+  }) async {
     final uri = Uri.parse('${_base(bridgeUrl)}/api/torrents').replace(
-      queryParameters: {'q': query, 'cat': _categoryForLibrary(library)},
+      queryParameters: {
+        'q': query,
+        'cat': _categoryForLibrary(library),
+        'source': source,
+      },
     );
     final client = _clientFactory();
     try {
@@ -576,8 +581,9 @@ class BridgeApi {
     String bridgeUrl,
     String slug,
     String library,
-    String sessionToken,
-  ) async {
+    String sessionToken, {
+    String source = 'tr4cker',
+  }) async {
     final uri = Uri.parse('${_base(bridgeUrl)}/api/torrents/$slug/launch');
     final client = _clientFactory();
     try {
@@ -588,7 +594,7 @@ class BridgeApi {
               'Content-Type': 'application/json',
               ..._authHeaders(sessionToken),
             },
-            body: jsonEncode({'library': library}),
+            body: jsonEncode({'library': library, 'source': source}),
           )
           .timeout(
             const Duration(seconds: 12),

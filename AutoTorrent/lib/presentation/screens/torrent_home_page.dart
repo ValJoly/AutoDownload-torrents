@@ -20,6 +20,7 @@ class TorrentHomePage extends StatefulWidget {
 class _TorrentHomePageState extends State<TorrentHomePage> {
   final _searchController = TextEditingController();
   String _library = 'audiobooks';
+  String _source = 'tr4cker';
 
   @override
   void dispose() {
@@ -46,7 +47,13 @@ class _TorrentHomePageState extends State<TorrentHomePage> {
     }
 
     context.read<TorrentBloc>().add(
-      SearchRequested(widget.session.bridgeUrl, query, _library, sessionToken),
+      SearchRequested(
+        widget.session.bridgeUrl,
+        query,
+        _library,
+        sessionToken,
+        source: _source,
+      ),
     );
   }
 
@@ -153,7 +160,7 @@ class _TorrentHomePageState extends State<TorrentHomePage> {
                       ),
                       const SizedBox(height: 7),
                       Text(
-                        'Search through TR4CKER and send a torrent to your home computer.',
+                        'Search a tracker and send a torrent to your home computer.',
                         style: theme.textTheme.bodyMedium?.copyWith(
                           color: Colors.black54,
                         ),
@@ -178,14 +185,53 @@ class _TorrentHomePageState extends State<TorrentHomePage> {
                         runSpacing: 4,
                         children: [
                           const Icon(
+                            Icons.travel_explore_outlined,
+                            size: 18,
+                            color: Colors.black54,
+                          ),
+                          Text('Tracker', style: theme.textTheme.labelLarge),
+                          ChoiceChip(
+                            selectedColor: theme.colorScheme.primary,
+                            backgroundColor: Colors.transparent,
+                            label: Text(
+                              'TR4CKER',
+                              style: TextStyle(
+                                color: _source == 'tr4cker'
+                                    ? Colors.white
+                                    : Colors.black87,
+                              ),
+                            ),
+                            selected: _source == 'tr4cker',
+                            onSelected: (_) =>
+                                setState(() => _source = 'tr4cker'),
+                          ),
+                          ChoiceChip(
+                            selectedColor: theme.colorScheme.primary,
+                            backgroundColor: Colors.transparent,
+                            label: Text(
+                              'C411',
+                              style: TextStyle(
+                                color: _source == 'c411'
+                                    ? Colors.white
+                                    : Colors.black87,
+                              ),
+                            ),
+                            selected: _source == 'c411',
+                            onSelected: (_) => setState(() => _source = 'c411'),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 4,
+                        children: [
+                          const Icon(
                             Icons.folder_outlined,
                             size: 18,
                             color: Colors.black54,
                           ),
-                          Text(
-                            'Save & Search',
-                            style: theme.textTheme.labelLarge,
-                          ),
+                          Text('Library', style: theme.textTheme.labelLarge),
                           ChoiceChip(
                             selectedColor: theme.colorScheme.primary,
                             backgroundColor: Colors.transparent,

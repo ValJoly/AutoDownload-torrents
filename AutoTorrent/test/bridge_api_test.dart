@@ -42,20 +42,61 @@ void main() {
       final api = BridgeApi(
         clientFactory: () => MockClient((request) async {
           capturedRequest = request;
-          return http.Response('[]', 200);
+          return http.Response(
+            jsonEncode([
+              {
+                'slug': '42',
+                'name': 'French audiobook',
+                'size_bytes': 2048,
+                'seeders': 7,
+                'file_count': 3,
+                'source': 'c411',
+              },
+            ]),
+            200,
+          );
         }),
       );
 
-      await api.search(
+      final results = await api.search(
         'http://bridge.local',
         'title',
         'books',
         'session-token',
+        source: 'c411',
       );
 
       expect(capturedRequest.headers['authorization'], 'Bearer session-token');
+      expect(capturedRequest.url.queryParameters['source'], 'c411');
+      expect(results.single.source, 'c411');
     },
   );
+
+  test('launch preserves the selected torrent source', () async {
+    late http.Request capturedRequest;
+    final api = BridgeApi(
+      clientFactory: () => MockClient((request) async {
+        capturedRequest = request;
+        return http.Response(
+          jsonEncode({'job_id': 'job-1', 'status': 'preparing'}),
+          202,
+        );
+      }),
+    );
+
+    await api.launch(
+      'http://bridge.local',
+      '42',
+      'audiobooks',
+      'session-token',
+      source: 'c411',
+    );
+
+    expect(jsonDecode(capturedRequest.body), {
+      'library': 'audiobooks',
+      'source': 'c411',
+    });
+  });
 
   test(
     'legal book search sends language and parses Gutendex metadata',

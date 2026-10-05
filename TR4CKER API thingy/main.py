@@ -27,6 +27,7 @@ from torrentool.api import Torrent
 
 from auth_api import create_auth_api
 from auth_store import AuthStore
+from c411_search import C411_CATEGORIES, C411SearchError, download_c411_torrent, search_c411
 from download_progress import normalize_aria2_status
 from legal_books import (
     LegalBooksError,
@@ -35,6 +36,7 @@ from legal_books import (
     validate_download_request,
 )
 from libgen_api_enhanced import LibgenSearch
+from torrent_cleanup import aria2_sidecar_paths, delete_aria2_sidecars
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("tr4cker_bridge")
@@ -48,10 +50,6 @@ if not API_KEY:
     raise RuntimeError("Missing TR4CKER_API_KEY in environment (.env file).")
 
 auth_store = AuthStore.from_environment()
-try:
-    auth_store.reconcile_startup_jobs()
-except Exception:
-    logger.exception("Could not reconcile startup download jobs.")
 
 auth_router, require_api_credentials = create_auth_api(auth_store)
 app = FastAPI(title="TR4CKER API bridge")
@@ -64,6 +62,7 @@ class LaunchTorrentBody(BaseModel):
     """Optional launch payload. `library` defaults to `audiobooks` when omitted and chooses between the configured folder targets."""
 
     library: str = "audiobooks"
+    source: str = "tr4cker"
 
 
 class LegalBookDownloadBody(BaseModel):
@@ -167,20 +166,19 @@ def public_download_job(job: Dict[str, Any]) -> Dict[str, Any]:
 
 def monitor_download_job(job_id: str, process: subprocess.Popen[Any]) -> None:
     return_code = process.wait()
-    if return_code == 0:
-        update_download_job(
+    if return_code != 0:
+        logger.warning(
+            "External torrent launcher exited with code %s for job_id=%s; "
+            "transfer status is unavailable.",
+            return_code,
             job_id,
-            status="handed_off",
-            phase="monitoring",
-            message="Launcher exited; transfer progress is unavailable.",
         )
-    else:
-        update_download_job(
-            job_id,
-            status="failed",
-            phase="failed",
-            message="The torrent launcher exited with an error.",
-        )
+    update_download_job(
+        job_id,
+        status="handed_off",
+        phase="monitoring",
+        message="External client started; transfer progress is unavailable.",
+    )
 
 
 def aria2_rpc(port: int, secret: str, method: str, *params: Any) -> Any:
@@ -212,6 +210,32 @@ def _reserve_loopback_port() -> int:
 
 def _apply_aria2_status(job_id: str, status_data: Dict[str, Any]) -> bool:
     normalized = normalize_aria2_status(status_data)
+    if normalized["status"] == "completed":
+        with download_jobs_lock:
+            job = download_jobs.get(job_id)
+            download_dir = job.get("download_dir") if job else None
+        if download_dir:
+            download_root = Path(download_dir).resolve()
+            library_roots = _configured_library_roots()
+            if download_root in {root.resolve() for root in library_roots}:
+                output_paths = [
+                    file_data["path"]
+                    for file_data in status_data.get("files", [])
+                    if isinstance(file_data, dict)
+                    and isinstance(file_data.get("path"), str)
+                ]
+                sidecars = aria2_sidecar_paths(output_paths, [download_root])
+                try:
+                    auth_store.set_download_job_cleanup_artifacts(job_id, sidecars)
+                except Exception:
+                    logger.exception(
+                        "Could not persist cleanup paths for job_id=%s", job_id
+                    )
+            else:
+                logger.warning(
+                    "Refusing to record cleanup paths outside configured libraries for job_id=%s",
+                    job_id,
+                )
     update_download_job(job_id, **normalized)
     return normalized["status"] in {"completed", "failed"}
 
@@ -263,9 +287,11 @@ def _monitor_aria2_job(job_id: str) -> None:
                 rpc_secret,
                 "aria2.tellStatus",
                 gid,
-                ["status", "totalLength", "completedLength", "downloadSpeed", "errorCode"],
+                ["status", "totalLength", "completedLength", "downloadSpeed", "errorCode", "files"],
             )
             if _apply_aria2_status(job_id, status_data):
+                if normalize_aria2_status(status_data)["status"] == "completed":
+                    cleanup_completed_download_artifacts(job_id)
                 _stop_aria2_job(job_id)
                 return
         except (OSError, RuntimeError, urllib.error.URLError, TimeoutError):
@@ -502,6 +528,7 @@ def health() -> Dict[str, str]:
 def search_torrents(
     q: str = Query(..., description="Search query"),
     cat: str = Query("livres-audio", description="Category to search in"),
+    source: str = Query("tr4cker", description="Torrent search provider"),
     _credentials: Dict[str, Any] = Depends(require_api_credentials),
     # page: int = Query(1, ge=1),
 ) -> Any:
@@ -511,7 +538,20 @@ def search_torrents(
     - cat = "livres-audio"
     - q = your search term
     """
-    logger.info("Incoming search request: q=%s cat=%s", q, cat)
+    logger.info("Incoming search request: source=%s cat=%s", source, cat)
+    if source == "c411":
+        if cat not in C411_CATEGORIES:
+            raise HTTPException(status_code=422, detail="Unsupported C411 category.")
+        c411_api_key = os.getenv("C411_API_KEY")
+        if not c411_api_key:
+            raise HTTPException(status_code=503, detail="C411 search is not configured.")
+        try:
+            return search_c411(q, cat, c411_api_key)
+        except C411SearchError as error:
+            logger.warning("C411 search failed: %s", error)
+            raise HTTPException(status_code=502, detail="C411 search failed.") from error
+    if source != "tr4cker":
+        raise HTTPException(status_code=422, detail="Unsupported torrent search provider.")
     response = request_tr4cker(
         f"{API_BASE_URL}/torrents",
         params={"cat": cat, "q": q},
@@ -677,9 +717,21 @@ def get_torrent_details(
 @app.get("/api/torrents/{slug}/download")
 def download_torrent(
     slug: str,
+    source: str = Query("tr4cker", description="Torrent source"),
     _credentials: Dict[str, Any] = Depends(require_api_credentials),
 ) -> StreamingResponse:
-    response = request_tr4cker(f"{API_BASE_URL}/torrents/{slug}/download", stream=True)
+    if source == "c411":
+        c411_api_key = os.getenv("C411_API_KEY")
+        if not c411_api_key:
+            raise HTTPException(status_code=503, detail="C411 search is not configured.")
+        try:
+            response = download_c411_torrent(slug, c411_api_key)
+        except C411SearchError as error:
+            raise HTTPException(status_code=502, detail="C411 download failed.") from error
+    elif source == "tr4cker":
+        response = request_tr4cker(f"{API_BASE_URL}/torrents/{slug}/download", stream=True)
+    else:
+        raise HTTPException(status_code=422, detail="Unsupported torrent source.")
 
     content_type = response.headers.get("Content-Type", "application/octet-stream")
     filename = f"{slug}.torrent"
@@ -690,10 +742,18 @@ def download_torrent(
     )
 
 
-def _prepare_and_launch_download(job_id: str, slug: str, library: str) -> None:
+def _prepare_and_launch_download(
+    job_id: str, slug: str, library: str, source: str = "tr4cker"
+) -> None:
     torrent_path: str | None = None
     try:
-        response = request_tr4cker(f"{API_BASE_URL}/torrents/{slug}/download", stream=True)
+        if source == "c411":
+            c411_api_key = os.getenv("C411_API_KEY")
+            if not c411_api_key:
+                raise ValueError("C411 search is not configured.")
+            response = download_c411_torrent(slug, c411_api_key)
+        else:
+            response = request_tr4cker(f"{API_BASE_URL}/torrents/{slug}/download", stream=True)
         try:
             raw_bytes = response.content
         finally:
@@ -803,8 +863,15 @@ def launch_torrent_download(
 ) -> Dict[str, Any]:
     """Return a progress job immediately and prepare/launch in the background."""
     library_value = body.library if body else "audiobooks"
+    source = body.source if body else "tr4cker"
+    if source not in {"tr4cker", "c411"}:
+        raise HTTPException(status_code=422, detail="Unsupported torrent source.")
+    if source == "c411" and not os.getenv("C411_API_KEY"):
+        raise HTTPException(status_code=503, detail="C411 search is not configured.")
     job = register_download_job(owner_id=credentials["user_id"], slug=slug)
-    background_tasks.add_task(_prepare_and_launch_download, job["job_id"], slug, library_value)
+    background_tasks.add_task(
+        _prepare_and_launch_download, job["job_id"], slug, library_value, source
+    )
     return public_download_job(job)
 
 
@@ -835,6 +902,48 @@ def resolve_download_dir(library: Optional[str] = None) -> Path:
     return base_dir / branch_value
 
 
+def _configured_library_roots() -> tuple[Path, Path]:
+    return resolve_download_dir("books"), resolve_download_dir("audiobooks")
+
+
+def cleanup_completed_download_artifacts(job_id: str | None = None) -> None:
+    artifacts = auth_store.list_completed_download_job_cleanup_artifacts()
+    grouped: Dict[str, Dict[str, Any]] = {}
+    for artifact in artifacts:
+        if job_id is not None and artifact["job_id"] != job_id:
+            continue
+        job_artifacts = grouped.setdefault(
+            artifact["job_id"],
+            {"download_dir": artifact["download_dir"], "paths": []},
+        )
+        job_artifacts["paths"].append(artifact["path"])
+
+    configured_roots = {root.resolve() for root in _configured_library_roots()}
+    for completed_job_id, job_artifacts in grouped.items():
+        try:
+            download_root = Path(job_artifacts["download_dir"]).resolve()
+        except (OSError, RuntimeError, ValueError):
+            logger.warning(
+                "Refusing cleanup for invalid library path on job_id=%s.",
+                completed_job_id,
+            )
+            continue
+        if download_root not in configured_roots:
+            logger.warning(
+                "Refusing cleanup for job_id=%s outside configured libraries.",
+                completed_job_id,
+            )
+            continue
+        try:
+            delete_aria2_sidecars(job_artifacts["paths"], [download_root])
+            auth_store.clear_download_job_cleanup_artifacts(completed_job_id)
+        except (OSError, RuntimeError, ValueError):
+            logger.exception(
+                "Could not remove completed download sidecars for job_id=%s",
+                completed_job_id,
+            )
+
+
 def local_aria2_path() -> Optional[str]:
     """Prefer a workspace-local aria2 binary only when it matches the current OS.
 
@@ -859,6 +968,16 @@ def local_aria2_path() -> Optional[str]:
         if candidate.exists():
             return str(candidate)
     return None
+
+
+try:
+    auth_store.reconcile_startup_jobs()
+except Exception:
+    logger.exception("Could not reconcile startup download jobs.")
+try:
+    cleanup_completed_download_artifacts()
+except Exception:
+    logger.exception("Could not clean completed download artifacts at startup.")
 
 
 if __name__ == "__main__":

@@ -118,6 +118,7 @@ class TorrentBloc extends Bloc<TorrentEvent, TorrentState> {
         event.query,
         event.library,
         event.sessionToken,
+        source: event.source,
       );
       emit(state.copyWith(loading: false, results: results, error: null));
     } catch (error) {
@@ -182,6 +183,7 @@ class TorrentBloc extends Bloc<TorrentEvent, TorrentState> {
         event.torrent.slug,
         event.library,
         event.sessionToken,
+        source: event.torrent.source,
       );
       emit(
         state.copyWith(error: null, downloads: _withJob(state.downloads, job)),

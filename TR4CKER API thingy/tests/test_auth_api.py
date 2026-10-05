@@ -372,11 +372,11 @@ class AuthApiTests(PostgresTestCase):
                     _aria2_gid="internal-gid",
                 )
 
-            class SuccessfulLauncher:
+            class LauncherThatExitsNonzero:
                 def wait(self) -> int:
-                    return 0
+                    return 1
 
-            main.monitor_download_job(job["job_id"], SuccessfulLauncher())
+            main.monitor_download_job(job["job_id"], LauncherThatExitsNonzero())
             with TestClient(main.app) as client:
                 owner_login = client.post(
                     "/api/auth/login",

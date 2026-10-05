@@ -6,12 +6,19 @@ A small FastAPI service that forwards search, details, and download requests to 
 
 This service exposes a compact HTTP layer for the app:
 
-- Forwards TR4CKER search, details, and download requests.
+- Forwards TR4CKER search, details, and download requests, and searches C411 through its Torznab API.
 - Streams `.torrent` files to the client.
 - Persists per-user launch/download job metadata in PostgreSQL.
 - Starts a local torrent client or `aria2c` when the user triggers launch.
 - Reports aria2 byte/percentage/speed/ETA progress and lifecycle-only status for external launchers.
+- Removes tracked aria2 `.aria2` sidecars after completed downloads and retries cleanup for completed jobs on startup.
 - Supports dual-stack IPv4/IPv6 listeners when configured.
+
+Cleanup is limited to exact aria2 sidecar paths recorded for completed jobs and
+resolved beneath the configured Books or Audiobooks directory. Interrupted
+downloads retain their resume sidecars. Existing `.aria2` or `.torrent` files
+without a bridge ownership record are not swept; bridge-created `.torrent`
+inputs are temporary files outside the library folders.
 
 ## Repository layout
 
@@ -47,6 +54,7 @@ TORRENT_HOST_DOWNLOAD_DIR=I:/Books
 Supported variables:
 
 - `TR4CKER_API_KEY` — required.
+- `C411_API_KEY` — optional; C411 API key from the account's integrations page.
 - `GOOGLE_BOOKS_API_KEY` — optional. Used only for preview-only search fallback when Gutendex times out or has no matching results.
 - `TR4CKER_API_DUAL_STACK` — enable IPv4 and IPv6 listeners together.
 - `TR4CKER_API_IPV6_HOST` — IPv6 bind address for the IPv6 listener.
@@ -176,7 +184,8 @@ Backend tests use an isolated PostgreSQL database; set
 - `POST /api/auth/invites` — owner-only; create a one-use invitation and return its code once.
 - `GET /api/auth/invites` — owner-only; list invitation status without returning codes.
 - `DELETE /api/auth/invites/{invite_id}` — owner-only; revoke an active invitation.
-- `GET /api/torrents?q={query}&cat={category}` — forward search requests to TR4CKER.
+- `GET /api/torrents?q={query}&cat={category}&source={tr4cker|c411}` — search torrents. `source` defaults to `tr4cker`; C411 uses `https://c411.org/api/torznab` with `t=search`. C411 category values map `livres-audio` to `3030` and `livres` to `7020`. Requests honor Jackett's configured 4.1-second interval.
+- `POST /api/torrents/{slug}/launch` — accepts `{"library":"audiobooks","source":"c411"}` for C411 results; `source` defaults to `tr4cker`.
 - `GET /api/books/search` — search books with the supplied filter map.
 - `GET /api/torrents/{slug}` — fetch torrent detail metadata.
 - `GET /api/torrents/{slug}/download` — stream the `.torrent` file.

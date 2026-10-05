@@ -1,6 +1,9 @@
 import unittest
+from pathlib import Path
+from tempfile import TemporaryDirectory
 
 from download_progress import normalize_aria2_status
+from torrent_cleanup import aria2_sidecar_paths, delete_aria2_sidecars
 
 
 class Aria2ProgressTests(unittest.TestCase):
@@ -60,6 +63,54 @@ class Aria2ProgressTests(unittest.TestCase):
         self.assertEqual(failed["status"], "failed")
         self.assertEqual(failed["phase"], "failed")
         self.assertNotIn("errorMessage", failed)
+
+    def test_completed_aria2_cleanup_removes_tracked_sidecars_only(self) -> None:
+        with TemporaryDirectory() as directory:
+            root = Path(directory) / "Books"
+            book = root / "book.epub"
+            sidecar = Path(f"{book}.aria2")
+            book.parent.mkdir(parents=True)
+            book.write_bytes(b"completed book")
+            sidecar.write_text("aria2 state", encoding="utf-8")
+            status = normalize_aria2_status(
+                {
+                    "status": "complete",
+                    "totalLength": "100",
+                    "completedLength": "100",
+                    "downloadSpeed": "0",
+                    "errorCode": "0",
+                }
+            )
+
+            if status["status"] == "completed":
+                tracked = aria2_sidecar_paths([str(book)], [root])
+                delete_aria2_sidecars(tracked, [root])
+
+            self.assertFalse(sidecar.exists())
+            self.assertTrue(book.exists())
+
+    def test_incomplete_aria2_job_preserves_its_sidecar(self) -> None:
+        with TemporaryDirectory() as directory:
+            root = Path(directory) / "Audiobooks"
+            book = root / "book.m4b"
+            sidecar = Path(f"{book}.aria2")
+            sidecar.parent.mkdir(parents=True)
+            sidecar.write_text("resume state", encoding="utf-8")
+            status = normalize_aria2_status(
+                {
+                    "status": "active",
+                    "totalLength": "100",
+                    "completedLength": "50",
+                    "downloadSpeed": "10",
+                    "errorCode": "0",
+                }
+            )
+
+            if status["status"] == "completed":
+                delete_aria2_sidecars([str(sidecar)], [root])
+
+            self.assertEqual(status["status"], "running")
+            self.assertTrue(sidecar.exists())
 
 
 if __name__ == "__main__":

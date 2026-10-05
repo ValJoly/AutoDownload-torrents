@@ -5,6 +5,7 @@ class TorrentItem {
     required this.size,
     required this.seeders,
     required this.files,
+    this.source = 'tr4cker',
   });
 
   final String slug;
@@ -12,6 +13,7 @@ class TorrentItem {
   final String size;
   final int seeders;
   final int files;
+  final String source;
 
   factory TorrentItem.fromJson(Map<String, dynamic> json) => TorrentItem(
     slug: '${json['slug'] ?? ''}',
@@ -19,6 +21,7 @@ class TorrentItem {
     size: _formatBytes(json['size_bytes']),
     seeders: _asInt(json['seeders']),
     files: _asInt(json['file_count']),
+    source: '${json['source'] ?? 'tr4cker'}',
   );
 
   static int _asInt(dynamic value) =>

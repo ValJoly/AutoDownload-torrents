@@ -15,16 +15,18 @@ class SearchRequested extends TorrentEvent {
     this.bridgeUrl,
     this.query,
     this.library,
-    this.sessionToken,
-  );
+    this.sessionToken, {
+    this.source = 'tr4cker',
+  });
 
   final String bridgeUrl;
   final String query;
   final String library;
   final String sessionToken;
+  final String source;
 
   @override
-  List<Object?> get props => [bridgeUrl, query, library, sessionToken];
+  List<Object?> get props => [bridgeUrl, query, library, sessionToken, source];
 }
 
 class LegalBooksSearchRequested extends TorrentEvent {

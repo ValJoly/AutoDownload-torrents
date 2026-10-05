@@ -1,5 +1,10 @@
+import importlib
+import os
+import tempfile
 import psycopg
+from pathlib import Path
 from concurrent.futures import ThreadPoolExecutor
+from unittest.mock import patch
 
 from auth_security import (
     create_session_token,
@@ -199,7 +204,87 @@ class AuthStoreTests(PostgresTestCase):
                 "SELECT MAX(version) AS version FROM schema_migrations"
             ).fetchone()["version"]
 
-        self.assertEqual(version, 2)
+        self.assertEqual(version, 3)
+
+    def test_cleanup_artifacts_are_persisted_and_listed_only_for_completed_jobs(self) -> None:
+        for job_id, status in (
+            ("job-completed", "completed"),
+            ("job-interrupted", "interrupted"),
+        ):
+            self.store.create_download_job(
+                job_id=job_id,
+                owner_id="user-1",
+                slug=job_id,
+                download_dir="/downloads/Books",
+                status=status,
+            )
+            self.store.set_download_job_cleanup_artifacts(
+                job_id,
+                ["/downloads/Books/book.epub.aria2"],
+            )
+
+        artifacts = self.store.list_completed_download_job_cleanup_artifacts()
+
+        self.assertEqual(
+            artifacts,
+            [
+                {
+                    "job_id": "job-completed",
+                    "download_dir": "/downloads/Books",
+                    "path": "/downloads/Books/book.epub.aria2",
+                }
+            ],
+        )
+        self.store.clear_download_job_cleanup_artifacts("job-completed")
+        self.assertEqual(self.store.list_completed_download_job_cleanup_artifacts(), [])
+
+    def test_startup_cleans_completed_owned_sidecars_only(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            books = Path(directory) / "Books"
+            books.mkdir()
+            completed_sidecar = books / "completed.epub.aria2"
+            interrupted_sidecar = books / "interrupted.epub.aria2"
+            untracked_torrent = books / "manual.torrent"
+            for path in (completed_sidecar, interrupted_sidecar, untracked_torrent):
+                path.write_text("test artifact", encoding="utf-8")
+
+            for job_id, status, sidecar in (
+                ("job-cleanup-completed", "completed", completed_sidecar),
+                ("job-cleanup-interrupted", "running", interrupted_sidecar),
+            ):
+                self.store.create_download_job(
+                    job_id=job_id,
+                    owner_id="user-1",
+                    slug=job_id,
+                    download_dir=str(books),
+                    status=status,
+                )
+                self.store.set_download_job_cleanup_artifacts(
+                    job_id, [str(sidecar)]
+                )
+
+            with patch.dict(
+                os.environ,
+                {
+                    "TR4CKER_API_KEY": "test-api-key",
+                    "SKYFORGE_DATABASE_URL": self.database_url,
+                    "SKYFORGE_DATABASE_SCHEMA": self.schema,
+                    "TORRENT_DOWNLOAD_DIR": directory,
+                    "BOOKS": "Books",
+                    "AUDIOBOOKS": "Audiobooks",
+                },
+            ):
+                import main
+
+                importlib.reload(main)
+
+            self.assertFalse(completed_sidecar.exists())
+            self.assertTrue(interrupted_sidecar.exists())
+            self.assertTrue(untracked_torrent.exists())
+            self.assertEqual(
+                self.store.get_download_job("job-cleanup-interrupted")["status"],
+                "interrupted",
+            )
 
     def test_download_jobs_crud_and_owner_isolation(self) -> None:
         self.store.create_user(
