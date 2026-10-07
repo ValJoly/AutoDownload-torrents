@@ -1,17 +1,22 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:go_router/go_router.dart';
 
 import '../../core/auth_session.dart';
 import '../../data/models/torrent_item.dart';
 import '../bloc/torrent_bloc.dart';
 import '../bloc/torrent_event.dart';
 import '../bloc/torrent_state.dart';
+import '../widgets/source_app_bar.dart';
 
 class TorrentHomePage extends StatefulWidget {
-  const TorrentHomePage({required this.session, super.key});
+  const TorrentHomePage({
+    required this.session,
+    required this.source,
+    super.key,
+  });
 
   final AuthSession session;
+  final String source;
 
   @override
   State<TorrentHomePage> createState() => _TorrentHomePageState();
@@ -20,7 +25,6 @@ class TorrentHomePage extends StatefulWidget {
 class _TorrentHomePageState extends State<TorrentHomePage> {
   final _searchController = TextEditingController();
   String _library = 'audiobooks';
-  String _source = 'tr4cker';
 
   @override
   void dispose() {
@@ -52,7 +56,7 @@ class _TorrentHomePageState extends State<TorrentHomePage> {
         query,
         _library,
         sessionToken,
-        source: _source,
+        source: widget.source,
       ),
     );
   }
@@ -77,73 +81,15 @@ class _TorrentHomePageState extends State<TorrentHomePage> {
     );
   }
 
-  Future<void> _signOut() async {
-    try {
-      await widget.session.signOut();
-    } catch (_) {
-      // Local credentials are cleared even if the bridge cannot be reached.
-    }
-    if (mounted) context.go('/auth');
-  }
-
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-
     return BlocBuilder<TorrentBloc, TorrentState>(
       builder: (context, state) {
+        final theme = Theme.of(context);
         return Scaffold(
-          appBar: AppBar(
-            titleSpacing: 20,
-            title: Row(
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(8),
-                  decoration: BoxDecoration(
-                    color: theme.colorScheme.primary,
-                    borderRadius: BorderRadius.circular(11),
-                  ),
-                  child: const Icon(Icons.bolt, color: Colors.white, size: 20),
-                ),
-                const SizedBox(width: 11),
-                const Text(
-                  'SkyForge',
-                  style: TextStyle(fontWeight: FontWeight.w800),
-                ),
-              ],
-            ),
-            actions: [
-              IconButton(
-                onPressed: () => context.push('/downloads'),
-                tooltip: 'Download history',
-                icon: Badge(
-                  isLabelVisible: state.activeDownloadCount > 0,
-                  label: Text(
-                    state.activeDownloadCount > 99
-                        ? '99+'
-                        : '${state.activeDownloadCount}',
-                  ),
-                  child: const Icon(Icons.downloading_outlined),
-                ),
-              ),
-              IconButton(
-                onPressed: () => context.push('/free-books'),
-                tooltip: 'Free books',
-                icon: const Icon(Icons.menu_book_outlined),
-              ),
-              if (widget.session.isOwner)
-                IconButton(
-                  onPressed: () => context.go('/invites'),
-                  tooltip: 'Manage invitations',
-                  icon: const Icon(Icons.group_add_outlined),
-                ),
-              IconButton(
-                onPressed: _signOut,
-                tooltip: 'Sign out',
-                icon: const Icon(Icons.logout),
-              ),
-              const SizedBox(width: 10),
-            ],
+          appBar: SourceAppBar(
+            session: widget.session,
+            activeDownloadCount: state.activeDownloadCount,
           ),
           body: SafeArea(
             child: CustomScrollView(
@@ -160,9 +106,9 @@ class _TorrentHomePageState extends State<TorrentHomePage> {
                       ),
                       const SizedBox(height: 7),
                       Text(
-                        'Search a tracker and send a torrent to your home computer.',
+                        'Search ${widget.source.toUpperCase()} and send a torrent to your home computer.',
                         style: theme.textTheme.bodyMedium?.copyWith(
-                          color: Colors.black54,
+                          color: theme.colorScheme.onSurfaceVariant,
                         ),
                       ),
                       const SizedBox(height: 22),
@@ -180,115 +126,80 @@ class _TorrentHomePageState extends State<TorrentHomePage> {
                         ),
                       ),
                       const SizedBox(height: 13),
-                      Wrap(
-                        spacing: 8,
-                        runSpacing: 4,
-                        children: [
-                          const Icon(
-                            Icons.travel_explore_outlined,
-                            size: 18,
-                            color: Colors.black54,
-                          ),
-                          Text('Tracker', style: theme.textTheme.labelLarge),
-                          ChoiceChip(
-                            selectedColor: theme.colorScheme.primary,
-                            backgroundColor: Colors.transparent,
-                            label: Text(
-                              'TR4CKER',
-                              style: TextStyle(
-                                color: _source == 'tr4cker'
-                                    ? Colors.white
-                                    : Colors.black87,
-                              ),
+                      SingleChildScrollView(
+                        key: const Key('library-selector-scroll'),
+                        scrollDirection: Axis.horizontal,
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          crossAxisAlignment: CrossAxisAlignment.center,
+                          children: [
+                            Icon(
+                              Icons.folder_outlined,
+                              size: 18,
+                              color: theme.colorScheme.onSurfaceVariant,
                             ),
-                            selected: _source == 'tr4cker',
-                            onSelected: (_) =>
-                                setState(() => _source = 'tr4cker'),
-                          ),
-                          ChoiceChip(
-                            selectedColor: theme.colorScheme.primary,
-                            backgroundColor: Colors.transparent,
-                            label: Text(
-                              'C411',
-                              style: TextStyle(
-                                color: _source == 'c411'
-                                    ? Colors.white
-                                    : Colors.black87,
-                              ),
-                            ),
-                            selected: _source == 'c411',
-                            onSelected: (_) => setState(() => _source = 'c411'),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 8),
-                      Wrap(
-                        spacing: 8,
-                        runSpacing: 4,
-                        children: [
-                          const Icon(
-                            Icons.folder_outlined,
-                            size: 18,
-                            color: Colors.black54,
-                          ),
-                          Text('Library', style: theme.textTheme.labelLarge),
-                          ChoiceChip(
-                            selectedColor: theme.colorScheme.primary,
-                            backgroundColor: Colors.transparent,
-                            side: BorderSide(
-                              color: state.library == 'audiobooks'
-                                  ? Colors.transparent
-                                  : Color(0xFFEAA4BD),
-                              width: 1,
-                            ),
-                            label: Text(
-                              'Audiobooks',
-                              style: TextStyle(
+                            const SizedBox(width: 6),
+                            Text('Library', style: theme.textTheme.labelLarge),
+                            const SizedBox(width: 8),
+                            ChoiceChip(
+                              selectedColor: theme.colorScheme.primary,
+                              backgroundColor: Colors.transparent,
+                              side: BorderSide(
                                 color: state.library == 'audiobooks'
-                                    ? Colors.white
-                                    : Colors.black87,
-                                fontWeight: state.library == 'audiobooks'
-                                    ? FontWeight.w700
-                                    : FontWeight.w500,
+                                    ? Colors.transparent
+                                    : theme.colorScheme.primary,
+                                width: 1,
                               ),
+                              label: Text(
+                                'Audiobooks',
+                                style: TextStyle(
+                                  color: state.library == 'audiobooks'
+                                      ? theme.colorScheme.onPrimary
+                                      : theme.colorScheme.onSurface,
+                                  fontWeight: state.library == 'audiobooks'
+                                      ? FontWeight.w700
+                                      : FontWeight.w500,
+                                ),
+                              ),
+                              selected: state.library == 'audiobooks',
+                              onSelected: (_) {
+                                setState(() => _library = 'audiobooks');
+                                context.read<TorrentBloc>().add(
+                                  const LibraryChanged('audiobooks'),
+                                );
+                              },
                             ),
-                            selected: state.library == 'audiobooks',
-                            onSelected: (_) {
-                              setState(() => _library = 'audiobooks');
-                              context.read<TorrentBloc>().add(
-                                const LibraryChanged('audiobooks'),
-                              );
-                            },
-                          ),
-                          ChoiceChip(
-                            selectedColor: theme.colorScheme.primary,
-                            backgroundColor: Colors.transparent,
-                            side: BorderSide(
-                              color: state.library == 'books'
-                                  ? Colors.transparent
-                                  : Color(0xFFEAA4BD),
-                              width: 1,
-                            ),
-                            label: Text(
-                              'Books',
-                              style: TextStyle(
+                            const SizedBox(width: 8),
+                            ChoiceChip(
+                              selectedColor: theme.colorScheme.primary,
+                              backgroundColor: Colors.transparent,
+                              side: BorderSide(
                                 color: state.library == 'books'
-                                    ? Colors.white
-                                    : Colors.black87,
-                                fontWeight: state.library == 'books'
-                                    ? FontWeight.w700
-                                    : FontWeight.w500,
+                                    ? Colors.transparent
+                                    : theme.colorScheme.primary,
+                                width: 1,
                               ),
+                              label: Text(
+                                'Books',
+                                style: TextStyle(
+                                  color: state.library == 'books'
+                                      ? theme.colorScheme.onPrimary
+                                      : theme.colorScheme.onSurface,
+                                  fontWeight: state.library == 'books'
+                                      ? FontWeight.w700
+                                      : FontWeight.w500,
+                                ),
+                              ),
+                              selected: state.library == 'books',
+                              onSelected: (_) {
+                                setState(() => _library = 'books');
+                                context.read<TorrentBloc>().add(
+                                  const LibraryChanged('books'),
+                                );
+                              },
                             ),
-                            selected: state.library == 'books',
-                            onSelected: (_) {
-                              setState(() => _library = 'books');
-                              context.read<TorrentBloc>().add(
-                                const LibraryChanged('books'),
-                              );
-                            },
-                          ),
-                        ],
+                          ],
+                        ),
                       ),
                       const SizedBox(height: 28),
                       if (state.loading)
@@ -364,7 +275,7 @@ class _TorrentCard extends StatelessWidget {
                 _Stat(
                   icon: Icons.upload_outlined,
                   text: '${torrent.seeders} seeders',
-                  color: Colors.green.shade700,
+                  color: Theme.of(context).colorScheme.tertiary,
                 ),
                 _Stat(
                   icon: Icons.folder_copy_outlined,
@@ -395,21 +306,24 @@ class _Stat extends StatelessWidget {
   final Color? color;
 
   @override
-  Widget build(BuildContext context) => Row(
-    mainAxisSize: MainAxisSize.min,
-    children: [
-      Icon(icon, size: 16, color: color ?? Colors.black45),
-      const SizedBox(width: 5),
-      Text(
-        text,
-        style: TextStyle(
-          color: color ?? Colors.black54,
-          fontSize: 12,
-          fontWeight: FontWeight.w600,
+  Widget build(BuildContext context) {
+    final mutedColor = Theme.of(context).colorScheme.onSurfaceVariant;
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(icon, size: 16, color: color ?? mutedColor),
+        const SizedBox(width: 5),
+        Text(
+          text,
+          style: TextStyle(
+            color: color ?? mutedColor,
+            fontSize: 12,
+            fontWeight: FontWeight.w600,
+          ),
         ),
-      ),
-    ],
-  );
+      ],
+    );
+  }
 }
 
 class _EmptyState extends StatelessWidget {
@@ -431,9 +345,11 @@ class _EmptyState extends StatelessWidget {
           style: TextStyle(fontWeight: FontWeight.w700),
         ),
         const SizedBox(height: 5),
-        const Text(
+        Text(
           'The bridge must be running on your computer.',
-          style: TextStyle(color: Colors.black54),
+          style: TextStyle(
+            color: Theme.of(context).colorScheme.onSurfaceVariant,
+          ),
         ),
       ],
     ),

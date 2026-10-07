@@ -12,6 +12,8 @@ This workspace contains two connected parts:
 ## Features
 
 - Search and browse torrent results from TR4CKER.
+- Switch between TR4CKER, C411, and Free books from the bottom navigation.
+- Choose a system, light, or dark theme and customize the accent color.
 - Search books separately in the Free books catalog; only books marked public domain for France with a direct supported format are offered.
 - Save eligible EPUB/PDF books to the bridge computer's configured Books folder and see them in download history.
 - Download `.torrent` files from the bridge.

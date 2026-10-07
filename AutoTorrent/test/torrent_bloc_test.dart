@@ -5,6 +5,7 @@ import 'package:auto_torrent/presentation/bloc/torrent_event.dart';
 import 'package:auto_torrent/presentation/screens/downloads_screen.dart';
 import 'package:auto_torrent/presentation/screens/free_books_screen.dart';
 import 'package:auto_torrent/presentation/screens/torrent_home_page.dart';
+import 'package:auto_torrent/presentation/widgets/source_navigation_shell.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -69,23 +70,56 @@ class _DownloadsApi extends BridgeApi {
 }
 
 void main() {
-  testWidgets('home opens free books as a separate destination', (
-    tester,
-  ) async {
+  testWidgets('bottom tabs switch between the three sources', (tester) async {
+    tester.view.physicalSize = const Size(320, 900);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
     final api = _DownloadsApi(const []);
     final session = AuthSession(api: api)
       ..bridgeUrl = 'http://bridge.local'
-      ..accessToken = 'session-token';
+      ..accessToken = 'session-token'
+      ..role = 'owner';
     final router = GoRouter(
       initialLocation: '/',
       routes: [
-        GoRoute(
-          path: '/',
-          builder: (context, state) => TorrentHomePage(session: session),
+        StatefulShellRoute.indexedStack(
+          builder: (context, state, navigationShell) =>
+              SourceNavigationShell(navigationShell: navigationShell),
+          branches: [
+            StatefulShellBranch(
+              routes: [
+                GoRoute(
+                  path: '/',
+                  builder: (context, state) =>
+                      TorrentHomePage(session: session, source: 'tr4cker'),
+                ),
+              ],
+            ),
+            StatefulShellBranch(
+              routes: [
+                GoRoute(
+                  path: '/c411',
+                  builder: (context, state) =>
+                      TorrentHomePage(session: session, source: 'c411'),
+                ),
+              ],
+            ),
+            StatefulShellBranch(
+              routes: [
+                GoRoute(
+                  path: '/free-books',
+                  builder: (context, state) =>
+                      FreeBooksScreen(session: session),
+                ),
+              ],
+            ),
+          ],
         ),
         GoRoute(
-          path: '/free-books',
-          builder: (context, state) => FreeBooksScreen(session: session),
+          path: '/downloads',
+          builder: (context, state) => DownloadsScreen(session: session),
         ),
       ],
     );
@@ -97,14 +131,50 @@ void main() {
       ),
     );
     await tester.pumpAndSettle();
+    final libraryCenter = tester.getCenter(find.text('Library'));
+    final audioChipCenter = tester.getCenter(find.text('Audiobooks'));
+    final bookChipCenter = tester.getCenter(find.text('Books'));
+    expect((libraryCenter.dy - audioChipCenter.dy).abs(), lessThan(1));
+    expect((audioChipCenter.dy - bookChipCenter.dy).abs(), lessThan(1));
     expect(find.text('Audiobooks'), findsOneWidget);
     expect(find.text('Books'), findsOneWidget);
-    expect(find.text('Free books'), findsNothing);
-    await tester.tap(find.byTooltip('Free books'));
-    await tester.pumpAndSettle();
+    expect(find.text('SkyForge'), findsOneWidget);
+    expect(find.byTooltip('Download history'), findsOneWidget);
+    expect(find.byTooltip('Appearance settings'), findsOneWidget);
+    expect(find.byTooltip('Manage invitations'), findsOneWidget);
+    expect(find.byTooltip('Sign out'), findsOneWidget);
+    expect(find.byType(NavigationBar), findsNothing);
+    expect(find.byTooltip('TR4CKER'), findsOneWidget);
+    expect(find.byTooltip('C411'), findsOneWidget);
+    expect(find.byTooltip('Free books'), findsOneWidget);
+    expect(tester.takeException(), isNull);
 
+    await tester.tap(find.text('C411'));
+    await tester.pump(const Duration(milliseconds: 80));
+    expect(tester.takeException(), isNull);
+    await tester.pumpAndSettle();
+    expect(
+      find.text('Search C411 and send a torrent to your home computer.'),
+      findsOneWidget,
+    );
+    expect(find.text('SkyForge'), findsOneWidget);
+    expect(find.byTooltip('Manage invitations'), findsOneWidget);
+
+    await tester.tap(find.text('Free books'));
+    await tester.pump(const Duration(milliseconds: 80));
+    expect(tester.takeException(), isNull);
+    await tester.pumpAndSettle();
     expect(find.byType(FreeBooksScreen), findsOneWidget);
     expect(find.text('Project Gutenberg'), findsOneWidget);
+    expect(find.text('SkyForge'), findsOneWidget);
+    expect(find.byTooltip('Download history'), findsOneWidget);
+    expect(find.byTooltip('Appearance settings'), findsOneWidget);
+    expect(find.byTooltip('Manage invitations'), findsOneWidget);
+    expect(find.byTooltip('Sign out'), findsOneWidget);
+    await tester.tap(find.byTooltip('Download history'));
+    await tester.pumpAndSettle();
+    expect(find.byType(DownloadsScreen), findsOneWidget);
+    expect(find.text('Downloads'), findsOneWidget);
     router.dispose();
   });
 
@@ -355,7 +425,9 @@ void main() {
           initialBridgeUrl: session.bridgeUrl,
           initialSessionToken: session.accessToken,
         ),
-        child: MaterialApp(home: TorrentHomePage(session: session)),
+        child: MaterialApp(
+          home: TorrentHomePage(session: session, source: 'tr4cker'),
+        ),
       ),
     );
     await tester.pump();

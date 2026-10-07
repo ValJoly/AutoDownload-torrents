@@ -7,6 +7,7 @@ import '../../data/api/bridge_api.dart';
 import '../bloc/torrent_bloc.dart';
 import '../bloc/torrent_event.dart';
 import '../bloc/torrent_state.dart';
+import '../widgets/source_app_bar.dart';
 
 const _bookLanguages = {
   'fr': 'French',
@@ -86,7 +87,10 @@ class _FreeBooksScreenState extends State<FreeBooksScreen> {
     final theme = Theme.of(context);
     return BlocBuilder<TorrentBloc, TorrentState>(
       builder: (context, state) => Scaffold(
-        appBar: AppBar(title: const Text('Free books')),
+        appBar: SourceAppBar(
+          session: widget.session,
+          activeDownloadCount: state.activeDownloadCount,
+        ),
         body: SafeArea(
           child: ListView(
             padding: const EdgeInsets.fromLTRB(20, 12, 20, 32),
@@ -101,7 +105,7 @@ class _FreeBooksScreenState extends State<FreeBooksScreen> {
               Text(
                 'Search free ebooks by title or author. French is selected by default.',
                 style: theme.textTheme.bodyMedium?.copyWith(
-                  color: Colors.black54,
+                  color: theme.colorScheme.onSurfaceVariant,
                 ),
               ),
               const SizedBox(height: 20),
@@ -227,7 +231,7 @@ class _FreeBookCard extends StatelessWidget {
             Text(
               '${book.source}${languages.isEmpty ? '' : ' · $languages'}',
               style: theme.textTheme.bodySmall?.copyWith(
-                color: Colors.black54,
+                color: theme.colorScheme.onSurfaceVariant,
                 fontWeight: FontWeight.w700,
               ),
             ),
@@ -238,7 +242,7 @@ class _FreeBookCard extends StatelessWidget {
                     ? 'Catalog marks this book as public domain in the US.'
                     : 'Catalog marks this book as copyrighted in the US.',
                 style: theme.textTheme.bodySmall?.copyWith(
-                  color: Colors.black54,
+                  color: theme.colorScheme.onSurfaceVariant,
                 ),
               ),
             ],
@@ -271,7 +275,7 @@ class _FreeBookCard extends StatelessWidget {
               Text(
                 'Open the source page for reading and download options.',
                 style: theme.textTheme.bodySmall?.copyWith(
-                  color: Colors.black54,
+                  color: theme.colorScheme.onSurfaceVariant,
                 ),
               ),
           ],

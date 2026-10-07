@@ -1,59 +1,91 @@
 import 'package:flutter/material.dart';
 
 import 'core/app_keys.dart';
+import 'core/app_preferences.dart';
 import 'core/app_router.dart';
 
-const appThemeColor = Color(0xFFEAA4BD);
-const appSoftColor = Color(0xFFFFDCEB);
-
-class AutoTorrentApp extends StatelessWidget {
+class AutoTorrentApp extends StatefulWidget {
   const AutoTorrentApp({super.key});
 
   @override
-  Widget build(BuildContext context) {
-    const background = Color(0xFFFFF7FA);
-    return MaterialApp.router(
-      title: 'SkyForge',
-      routerConfig: AppRouter.router,
-      scaffoldMessengerKey: AppKeys.scaffoldMessengerKey,
-      debugShowCheckedModeBanner: false,
-      theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(
-          seedColor: appThemeColor,
-          brightness: Brightness.light,
+  State<AutoTorrentApp> createState() => _AutoTorrentAppState();
+}
+
+class _AutoTorrentAppState extends State<AutoTorrentApp> {
+  late final Future<void> _preferencesReady = appPreferences.initialize();
+
+  @override
+  Widget build(BuildContext context) => FutureBuilder<void>(
+    future: _preferencesReady,
+    builder: (context, snapshot) {
+      return AnimatedBuilder(
+        animation: appPreferences,
+        builder: (context, _) => MaterialApp.router(
+          title: 'SkyForge',
+          routerConfig: AppRouter.router,
+          scaffoldMessengerKey: AppKeys.scaffoldMessengerKey,
+          debugShowCheckedModeBanner: false,
+          theme: _buildTheme(appPreferences.accentColor, Brightness.light),
+          darkTheme: _buildTheme(appPreferences.accentColor, Brightness.dark),
+          themeMode: appPreferences.themeMode,
+          builder: (context, child) => snapshot.hasError
+              ? Column(
+                  children: [
+                    MaterialBanner(
+                      content: Text(
+                        'Unable to load appearance settings: ${snapshot.error}',
+                      ),
+                      actions: const [SizedBox.shrink()],
+                    ),
+                    Expanded(child: child ?? const SizedBox.shrink()),
+                  ],
+                )
+              : child ?? const SizedBox.shrink(),
         ),
-        scaffoldBackgroundColor: background,
-        useMaterial3: true,
-        appBarTheme: const AppBarTheme(
-          backgroundColor: background,
-          foregroundColor: Color(0xFF523157),
-        ),
-        inputDecorationTheme: InputDecorationTheme(
-          filled: true,
-          fillColor: Colors.white,
-          border: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(14),
-            borderSide: BorderSide.none,
-          ),
-          enabledBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(14),
-            borderSide: BorderSide.none,
-          ),
-          focusedBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(14),
-            borderSide: const BorderSide(color: appThemeColor, width: 1.5),
-          ),
-        ),
-        chipTheme: ChipThemeData(
-          selectedColor: appThemeColor,
-          secondarySelectedColor: appSoftColor,
-          showCheckmark: false,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(20),
-          ),
-          side: const BorderSide(color: appThemeColor, width: 1),
-        ),
+      );
+    },
+  );
+}
+
+ThemeData _buildTheme(Color accentColor, Brightness brightness) {
+  final colorScheme = ColorScheme.fromSeed(
+    seedColor: accentColor,
+    brightness: brightness,
+  );
+  final background = brightness == Brightness.light
+      ? const Color(0xFFFFF7FA)
+      : const Color(0xFF121116);
+
+  return ThemeData(
+    colorScheme: colorScheme,
+    scaffoldBackgroundColor: background,
+    useMaterial3: true,
+    appBarTheme: AppBarTheme(
+      backgroundColor: background,
+      foregroundColor: colorScheme.onSurface,
+    ),
+    inputDecorationTheme: InputDecorationTheme(
+      filled: true,
+      fillColor: colorScheme.surfaceContainerHighest,
+      border: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(14),
+        borderSide: BorderSide.none,
       ),
-    );
-  }
+      enabledBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(14),
+        borderSide: BorderSide.none,
+      ),
+      focusedBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(14),
+        borderSide: BorderSide(color: colorScheme.primary, width: 1.5),
+      ),
+    ),
+    chipTheme: ChipThemeData(
+      selectedColor: colorScheme.primary,
+      secondarySelectedColor: colorScheme.secondaryContainer,
+      showCheckmark: false,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+      side: BorderSide(color: colorScheme.outline),
+    ),
+  );
 }

@@ -19,6 +19,7 @@ __pycache__/
 venv/
 env/
 *.egg-info/
+/TR4CKER API thingy/data/
 
 # Flutter/Dart generated files
 AutoTorrent/.dart_tool/
@@ -38,6 +39,9 @@ AutoTorrent/**/local.properties
 *.iml
 *.ipr
 *.iws
+
+# Graphify generated output
+/graphify-out/
 
 # Operating system files and logs
 .DS_Store

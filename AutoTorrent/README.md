@@ -23,3 +23,8 @@ uvicorn main:app --host 0.0.0.0 --port 8384
 
 The app searches `GET /api/torrents` and sends `POST /api/torrents/{slug}/launch`
 with the selected `library` (`audiobooks` or `books`).
+
+Use the bottom tabs to switch between TR4CKER, C411, and free-book search.
+Download history remains available from the source screens. Appearance settings
+let you follow the system theme or choose light/dark mode, and select a preset
+or custom accent color.

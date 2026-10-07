@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../core/auth_session.dart';
 import '../../data/api/bridge_api.dart';
@@ -21,6 +22,11 @@ class DownloadsScreen extends StatelessWidget {
         appBar: AppBar(
           title: const Text('Downloads'),
           actions: [
+            IconButton(
+              onPressed: () => context.push('/settings'),
+              tooltip: 'Appearance settings',
+              icon: const Icon(Icons.palette_outlined),
+            ),
             IconButton(
               tooltip: 'Refresh downloads',
               onPressed: state.downloadsLoading || session.accessToken == null
@@ -112,7 +118,7 @@ class _DownloadHistoryItem extends StatelessWidget {
     final color = failed
         ? theme.colorScheme.error
         : completed
-        ? Colors.green.shade700
+        ? theme.colorScheme.tertiary
         : theme.colorScheme.primary;
 
     return Card(
