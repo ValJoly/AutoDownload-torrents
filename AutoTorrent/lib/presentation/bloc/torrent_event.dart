@@ -77,16 +77,24 @@ class LaunchRequested extends TorrentEvent {
     this.bridgeUrl,
     this.torrent,
     this.library,
-    this.sessionToken,
-  );
+    this.sessionToken, {
+    this.source = 'tr4cker',
+  });
 
   final String bridgeUrl;
   final TorrentItem torrent;
   final String library;
   final String sessionToken;
+  final String source;
 
   @override
-  List<Object?> get props => [bridgeUrl, torrent, library, sessionToken];
+  List<Object?> get props => [
+    bridgeUrl,
+    torrent,
+    library,
+    sessionToken,
+    source,
+  ];
 }
 
 class LegalBookDownloadRequested extends TorrentEvent {

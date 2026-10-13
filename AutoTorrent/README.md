@@ -21,6 +21,8 @@ bound to the LAN interface:
 uvicorn main:app --host 0.0.0.0 --port 8384
 ```
 
+Use **Check connection** in Settings to test the saved bridge address.
+
 The app searches `GET /api/torrents` and sends `POST /api/torrents/{slug}/launch`
 with the selected `library` (`audiobooks` or `books`).
 

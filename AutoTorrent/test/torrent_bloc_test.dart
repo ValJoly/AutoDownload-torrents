@@ -1,5 +1,6 @@
 import 'package:auto_torrent/core/auth_session.dart';
 import 'package:auto_torrent/data/api/bridge_api.dart';
+import 'package:auto_torrent/data/models/torrent_item.dart';
 import 'package:auto_torrent/presentation/bloc/torrent_bloc.dart';
 import 'package:auto_torrent/presentation/bloc/torrent_event.dart';
 import 'package:auto_torrent/presentation/screens/downloads_screen.dart';
@@ -17,14 +18,19 @@ class _DownloadsApi extends BridgeApi {
     this.error,
     this.legalBooks = const [],
     this.legalBookJob,
+    this.searchResults = const [],
+    this.launchJob,
   });
 
   final List<DownloadJob> downloads;
   final List<LegalBook> legalBooks;
   final DownloadJob? legalBookJob;
+  final List<TorrentItem> searchResults;
+  final DownloadJob? launchJob;
   Object? error;
   String? requestedBridgeUrl;
   String? requestedSessionToken;
+  String? launchedTorrentSource;
   String? searchedLegalBookQuery;
   String? searchedLegalBookLanguage;
   bool? searchedGutenbergOnly;
@@ -54,6 +60,27 @@ class _DownloadsApi extends BridgeApi {
     searchedLegalBookLanguage = language;
     searchedGutenbergOnly = gutenbergOnly;
     return legalBooks;
+  }
+
+  @override
+  Future<List<TorrentItem>> search(
+    String bridgeUrl,
+    String query,
+    String library,
+    String sessionToken, {
+    String source = 'tr4cker',
+  }) async => searchResults;
+
+  @override
+  Future<DownloadJob> launch(
+    String bridgeUrl,
+    String slug,
+    String library,
+    String sessionToken, {
+    String source = 'tr4cker',
+  }) async {
+    launchedTorrentSource = source;
+    return launchJob!;
   }
 
   @override
@@ -404,6 +431,49 @@ void main() {
 
     expect(find.text('Book One'), findsOneWidget);
     expect(find.text('History is temporarily unavailable.'), findsNothing);
+  });
+
+  testWidgets('launch uses the selected provider, not result metadata', (
+    tester,
+  ) async {
+    final api = _DownloadsApi(
+      const [],
+      searchResults: [
+        TorrentItem(
+          slug: 'jeff-vandermeer-annihilation-epub-aa35dd49',
+          name: 'Jeff VanderMeer - Annihilation [ePub]',
+          size: '1 MB',
+          seeders: 3,
+          files: 1,
+          source: 'torrent-indexer-name',
+        ),
+      ],
+      launchJob: const DownloadJob(id: 'job-1', status: 'preparing'),
+    );
+    final session = AuthSession(api: api)
+      ..bridgeUrl = 'http://bridge.local'
+      ..accessToken = 'session-token';
+    final bloc = TorrentBloc(api);
+
+    await tester.pumpWidget(
+      BlocProvider(
+        create: (_) => bloc,
+        child: MaterialApp(
+          home: TorrentHomePage(session: session, source: 'tr4cker'),
+        ),
+      ),
+    );
+    await tester.enterText(find.byType(TextField), 'annihilation');
+    await tester.tap(find.byIcon(Icons.arrow_forward_rounded));
+    await tester.pump();
+    await tester.pump();
+
+    expect(find.text('Jeff VanderMeer - Annihilation [ePub]'), findsOneWidget);
+    await tester.tap(find.text('Download to computer'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 100));
+
+    expect(api.launchedTorrentSource, 'tr4cker');
   });
 
   testWidgets('search toolbar badge counts only active downloads', (

@@ -1,11 +1,24 @@
 import 'package:flutter/material.dart';
 
 import '../../core/app_preferences.dart';
+import '../../core/auth_session.dart';
+import '../../data/api/bridge_api.dart';
 
-class AppearanceSettingsScreen extends StatelessWidget {
-  const AppearanceSettingsScreen({this.preferences, super.key});
+class AppearanceSettingsScreen extends StatefulWidget {
+  const AppearanceSettingsScreen({this.preferences, this.session, super.key});
 
   final AppPreferences? preferences;
+  final AuthSession? session;
+
+  @override
+  State<AppearanceSettingsScreen> createState() =>
+      _AppearanceSettingsScreenState();
+}
+
+class _AppearanceSettingsScreenState extends State<AppearanceSettingsScreen> {
+  bool _checkingConnectivity = false;
+  String? _connectivityMessage;
+  bool _connectivitySucceeded = false;
 
   static const _accents = [
     _AccentOption('Rose', Color(0xFFEAA4BD)),
@@ -19,7 +32,7 @@ class AppearanceSettingsScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final preferences = this.preferences ?? appPreferences;
+    final preferences = widget.preferences ?? appPreferences;
     return AnimatedBuilder(
       animation: preferences,
       builder: (context, _) {
@@ -34,6 +47,54 @@ class AppearanceSettingsScreen extends StatelessWidget {
           body: ListView(
             padding: const EdgeInsets.fromLTRB(20, 12, 20, 32),
             children: [
+              if (widget.session != null) ...[
+                Text('Server connection', style: theme.textTheme.titleMedium),
+                const SizedBox(height: 4),
+                Text(
+                  'Check whether your saved bridge server is reachable.',
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                FilledButton.icon(
+                  key: const Key('check-server-connectivity'),
+                  onPressed:
+                      _checkingConnectivity || widget.session!.bridgeUrl.isEmpty
+                      ? null
+                      : _checkConnectivity,
+                  icon: _checkingConnectivity
+                      ? const SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Icon(Icons.wifi_find_outlined),
+                  label: Text(
+                    _checkingConnectivity ? 'Checking…' : 'Check connection',
+                  ),
+                ),
+                if (widget.session!.bridgeUrl.isEmpty)
+                  Text(
+                    'No saved bridge address.',
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: theme.colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                if (_connectivityMessage case final message?)
+                  Semantics(
+                    liveRegion: true,
+                    child: Text(
+                      message,
+                      style: theme.textTheme.bodyMedium?.copyWith(
+                        color: _connectivitySucceeded
+                            ? theme.colorScheme.primary
+                            : theme.colorScheme.error,
+                      ),
+                    ),
+                  ),
+                const SizedBox(height: 28),
+              ],
               Text('Theme', style: theme.textTheme.titleMedium),
               const SizedBox(height: 12),
               SegmentedButton<ThemeMode>(
@@ -139,6 +200,35 @@ class AppearanceSettingsScreen extends StatelessWidget {
         );
       },
     );
+  }
+
+  Future<void> _checkConnectivity() async {
+    final session = widget.session;
+    if (session == null || session.bridgeUrl.isEmpty) return;
+
+    setState(() {
+      _checkingConnectivity = true;
+      _connectivityMessage = null;
+    });
+    try {
+      await session.api.checkConnectivity(session.bridgeUrl);
+      if (!mounted) return;
+      setState(() {
+        _connectivitySucceeded = true;
+        _connectivityMessage = 'Server is reachable.';
+      });
+    } catch (error) {
+      if (!mounted) return;
+      final details = error is BridgeException ? error.message : error;
+      setState(() {
+        _connectivitySucceeded = false;
+        _connectivityMessage = 'Could not connect: $details';
+      });
+    } finally {
+      if (mounted) {
+        setState(() => _checkingConnectivity = false);
+      }
+    }
   }
 
   Future<void> _saveTheme(

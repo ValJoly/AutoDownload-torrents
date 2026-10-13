@@ -77,6 +77,7 @@ class _TorrentHomePageState extends State<TorrentHomePage> {
         torrent,
         _library,
         sessionToken,
+        source: widget.source,
       ),
     );
   }

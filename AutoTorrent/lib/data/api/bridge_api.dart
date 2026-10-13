@@ -227,6 +227,23 @@ class BridgeApi {
     return library == 'books' ? 'livres' : 'livres-audio';
   }
 
+  Future<void> checkConnectivity(String bridgeUrl) async {
+    final client = _clientFactory();
+    try {
+      final response = await client
+          .get(Uri.parse('${_base(bridgeUrl)}/health'))
+          .timeout(const Duration(seconds: 12));
+      final data = _decode(response);
+      if (data is! Map<String, dynamic> || data['status'] != 'ok') {
+        throw BridgeException('The bridge health check returned an unhealthy response.');
+      }
+    } on TimeoutException {
+      throw BridgeException('The bridge connectivity check timed out.');
+    } finally {
+      client.close();
+    }
+  }
+
   Future<BridgeSession> login(
     String bridgeUrl,
     String username,

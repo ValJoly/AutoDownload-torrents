@@ -6,6 +6,34 @@ import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 
 void main() {
+  test('checkConnectivity calls the bridge health route', () async {
+    late http.Request capturedRequest;
+    final api = BridgeApi(
+      clientFactory: () => MockClient((request) async {
+        capturedRequest = request;
+        return http.Response(jsonEncode({'status': 'ok'}), 200);
+      }),
+    );
+
+    await api.checkConnectivity('http://bridge.local/');
+
+    expect(capturedRequest.method, 'GET');
+    expect(capturedRequest.url.path, '/health');
+  });
+
+  test('checkConnectivity rejects a non-healthy response', () async {
+    final api = BridgeApi(
+      clientFactory: () => MockClient(
+        (_) async => http.Response(jsonEncode({'status': 'starting'}), 200),
+      ),
+    );
+
+    await expectLater(
+      api.checkConnectivity('http://bridge.local'),
+      throwsA(isA<BridgeException>()),
+    );
+  });
+
   test('login exchanges credentials for the server access token', () async {
     late http.Request capturedRequest;
     final api = BridgeApi(

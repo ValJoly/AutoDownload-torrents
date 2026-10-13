@@ -183,7 +183,7 @@ class TorrentBloc extends Bloc<TorrentEvent, TorrentState> {
         event.torrent.slug,
         event.library,
         event.sessionToken,
-        source: event.torrent.source,
+        source: event.source,
       );
       emit(
         state.copyWith(error: null, downloads: _withJob(state.downloads, job)),

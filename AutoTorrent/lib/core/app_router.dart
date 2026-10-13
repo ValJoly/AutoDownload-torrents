@@ -102,7 +102,8 @@ class AppRouter {
             ),
             GoRoute(
               path: '/settings',
-              builder: (context, state) => const AppearanceSettingsScreen(),
+              builder: (context, state) =>
+                  AppearanceSettingsScreen(session: session),
             ),
           ],
         ),
