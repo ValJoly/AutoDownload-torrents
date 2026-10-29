@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../core/auth_session.dart';
+import '../widgets/brutal.dart';
 
 class AuthScreen extends StatefulWidget {
   const AuthScreen({
@@ -102,7 +103,11 @@ class _AuthScreenState extends State<AuthScreen> {
                         padding: const EdgeInsets.all(9),
                         decoration: BoxDecoration(
                           color: theme.colorScheme.primary,
-                          borderRadius: BorderRadius.circular(8),
+                          borderRadius: BorderRadius.circular(brutalRadius),
+                          border: Border.all(
+                            color: brutalInk(context),
+                            width: brutalBorderWidth,
+                          ),
                         ),
                         child: const Icon(Icons.bolt, color: Colors.white),
                       ),
@@ -139,85 +144,95 @@ class _AuthScreenState extends State<AuthScreen> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
-                        TextFormField(
-                          key: const Key('bridge-url'),
-                          controller: _bridgeController,
-                          keyboardType: TextInputType.url,
-                          textInputAction: TextInputAction.next,
-                          validator: (value) =>
-                              _required(value, 'Bridge address'),
-                          decoration: const InputDecoration(
-                            labelText: 'Bridge address',
-                            hintText: 'https://bridge.example.com',
-                            prefixIcon: Icon(Icons.link),
+                        BrutalField(
+                          child: TextFormField(
+                            key: const Key('bridge-url'),
+                            controller: _bridgeController,
+                            keyboardType: TextInputType.url,
+                            textInputAction: TextInputAction.next,
+                            validator: (value) =>
+                                _required(value, 'Bridge address'),
+                            decoration: const InputDecoration(
+                              labelText: 'Bridge address',
+                              hintText: 'https://bridge.example.com',
+                              prefixIcon: Icon(Icons.link),
+                            ),
                           ),
                         ),
                         if (registration) ...[
                           const SizedBox(height: 14),
-                          TextFormField(
-                            key: const Key('invite-code'),
-                            controller: _inviteController,
-                            textInputAction: TextInputAction.next,
-                            validator: (value) =>
-                                _required(value, 'Invite code'),
-                            decoration: const InputDecoration(
-                              labelText: 'Invite code',
-                              prefixIcon: Icon(
-                                Icons.confirmation_number_outlined,
+                          BrutalField(
+                            child: TextFormField(
+                              key: const Key('invite-code'),
+                              controller: _inviteController,
+                              textInputAction: TextInputAction.next,
+                              validator: (value) =>
+                                  _required(value, 'Invite code'),
+                              decoration: const InputDecoration(
+                                labelText: 'Invite code',
+                                prefixIcon: Icon(
+                                  Icons.confirmation_number_outlined,
+                                ),
                               ),
                             ),
                           ),
                         ],
                         const SizedBox(height: 14),
-                        TextFormField(
-                          controller: _usernameController,
-                          textInputAction: TextInputAction.next,
-                          autocorrect: false,
-                          validator: (value) => _required(value, 'Username'),
-                          decoration: const InputDecoration(
-                            labelText: 'Username',
-                            prefixIcon: Icon(Icons.person_outline),
+                        BrutalField(
+                          child: TextFormField(
+                            controller: _usernameController,
+                            textInputAction: TextInputAction.next,
+                            autocorrect: false,
+                            validator: (value) => _required(value, 'Username'),
+                            decoration: const InputDecoration(
+                              labelText: 'Username',
+                              prefixIcon: Icon(Icons.person_outline),
+                            ),
                           ),
                         ),
                         const SizedBox(height: 14),
-                        TextFormField(
-                          controller: _passwordController,
-                          obscureText: true,
-                          textInputAction: registration
-                              ? TextInputAction.next
-                              : TextInputAction.done,
-                          onFieldSubmitted: (_) {
-                            if (!registration) _submit();
-                          },
-                          validator: (value) {
-                            final required = _required(value, 'Password');
-                            if (required != null) return required;
-                            if (registration && value!.length < 12) {
-                              return 'Use at least 12 characters.';
-                            }
-                            return null;
-                          },
-                          decoration: const InputDecoration(
-                            labelText: 'Password',
-                            prefixIcon: Icon(Icons.lock_outline),
-                          ),
-                        ),
-                        if (registration) ...[
-                          const SizedBox(height: 14),
-                          TextFormField(
-                            controller: _confirmPasswordController,
+                        BrutalField(
+                          child: TextFormField(
+                            controller: _passwordController,
                             obscureText: true,
-                            textInputAction: TextInputAction.done,
-                            onFieldSubmitted: (_) => _submit(),
+                            textInputAction: registration
+                                ? TextInputAction.next
+                                : TextInputAction.done,
+                            onFieldSubmitted: (_) {
+                              if (!registration) _submit();
+                            },
                             validator: (value) {
-                              if (value != _passwordController.text) {
-                                return 'Passwords do not match.';
+                              final required = _required(value, 'Password');
+                              if (required != null) return required;
+                              if (registration && value!.length < 12) {
+                                return 'Use at least 12 characters.';
                               }
                               return null;
                             },
                             decoration: const InputDecoration(
-                              labelText: 'Confirm password',
+                              labelText: 'Password',
                               prefixIcon: Icon(Icons.lock_outline),
+                            ),
+                          ),
+                        ),
+                        if (registration) ...[
+                          const SizedBox(height: 14),
+                          BrutalField(
+                            child: TextFormField(
+                              controller: _confirmPasswordController,
+                              obscureText: true,
+                              textInputAction: TextInputAction.done,
+                              onFieldSubmitted: (_) => _submit(),
+                              validator: (value) {
+                                if (value != _passwordController.text) {
+                                  return 'Passwords do not match.';
+                                }
+                                return null;
+                              },
+                              decoration: const InputDecoration(
+                                labelText: 'Confirm password',
+                                prefixIcon: Icon(Icons.lock_outline),
+                              ),
                             ),
                           ),
                         ],

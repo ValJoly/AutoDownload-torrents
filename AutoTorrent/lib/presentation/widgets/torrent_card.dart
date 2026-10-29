@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../data/models/torrent_item.dart';
+import 'brutal.dart';
 import 'stat.dart';
 
 class TorrentCard extends StatelessWidget {
@@ -12,10 +13,7 @@ class TorrentCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    return Card(
-      margin: const EdgeInsets.only(bottom: 12),
-      elevation: 0,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+    return BrutalCard(
       child: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(

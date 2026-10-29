@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../core/app_preferences.dart';
 import '../../core/auth_session.dart';
 import '../../data/api/bridge_api.dart';
+import '../widgets/brutal.dart';
 
 class AppearanceSettingsScreen extends StatefulWidget {
   const AppearanceSettingsScreen({this.preferences, this.session, super.key});
@@ -72,231 +73,296 @@ class _AppearanceSettingsScreenState extends State<AppearanceSettingsScreen> {
             padding: const EdgeInsets.fromLTRB(20, 12, 20, 32),
             children: [
               if (widget.session != null) ...[
-                Text('Server address', style: theme.textTheme.titleMedium),
-                const SizedBox(height: 4),
-                Text(
-                  'Changing servers signs you out of the current server.',
-                  style: theme.textTheme.bodyMedium?.copyWith(
-                    color: theme.colorScheme.onSurfaceVariant,
+                BrutalCard(
+                  child: Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Server address',
+                          style: theme.textTheme.titleMedium,
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          'Changing servers signs you out of the current server.',
+                          style: theme.textTheme.bodyMedium?.copyWith(
+                            color: theme.colorScheme.onSurfaceVariant,
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+                        Form(
+                          key: _serverAddressFormKey,
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              BrutalField(
+                                child: TextFormField(
+                                  key: const Key('server-address'),
+                                  controller: _serverAddressController,
+                                  keyboardType: TextInputType.url,
+                                  textInputAction: TextInputAction.done,
+                                  validator: (value) =>
+                                      value == null || value.trim().isEmpty
+                                      ? 'Bridge address is required.'
+                                      : null,
+                                  decoration: const InputDecoration(
+                                    labelText: 'Bridge address',
+                                    hintText: 'https://bridge.example.com',
+                                    prefixIcon: Icon(Icons.link),
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(height: 12),
+                              FilledButton.icon(
+                                key: const Key('save-server-address'),
+                                onPressed: _savingServerAddress
+                                    ? null
+                                    : _saveServerAddress,
+                                icon: _savingServerAddress
+                                    ? const SizedBox(
+                                        width: 18,
+                                        height: 18,
+                                        child: CircularProgressIndicator(
+                                          strokeWidth: 2,
+                                        ),
+                                      )
+                                    : const Icon(Icons.save_outlined),
+                                label: Text(
+                                  _savingServerAddress
+                                      ? 'Saving…'
+                                      : 'Save server address',
+                                ),
+                              ),
+                              if (_serverAddressMessage case final message?)
+                                Padding(
+                                  padding: const EdgeInsets.only(top: 8),
+                                  child: Semantics(
+                                    liveRegion: true,
+                                    child: Text(
+                                      message,
+                                      style: theme.textTheme.bodyMedium
+                                          ?.copyWith(
+                                            color: _serverAddressSaveSucceeded
+                                                ? theme.colorScheme.primary
+                                                : theme.colorScheme.error,
+                                          ),
+                                    ),
+                                  ),
+                                ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
-                const SizedBox(height: 12),
-                Form(
-                  key: _serverAddressFormKey,
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      TextFormField(
-                        key: const Key('server-address'),
-                        controller: _serverAddressController,
-                        keyboardType: TextInputType.url,
-                        textInputAction: TextInputAction.done,
-                        validator: (value) =>
-                            value == null || value.trim().isEmpty
-                            ? 'Bridge address is required.'
-                            : null,
-                        decoration: const InputDecoration(
-                          labelText: 'Bridge address',
-                          hintText: 'https://bridge.example.com',
-                          prefixIcon: Icon(Icons.link),
+                BrutalCard(
+                  child: Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Server connection',
+                          style: theme.textTheme.titleMedium,
                         ),
-                      ),
-                      const SizedBox(height: 12),
-                      FilledButton.icon(
-                        key: const Key('save-server-address'),
-                        onPressed: _savingServerAddress
-                            ? null
-                            : _saveServerAddress,
-                        icon: _savingServerAddress
-                            ? const SizedBox(
-                                width: 18,
-                                height: 18,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2,
-                                ),
-                              )
-                            : const Icon(Icons.save_outlined),
-                        label: Text(
-                          _savingServerAddress
-                              ? 'Saving…'
-                              : 'Save server address',
+                        const SizedBox(height: 4),
+                        Text(
+                          'Check whether your saved bridge server is reachable.',
+                          style: theme.textTheme.bodyMedium?.copyWith(
+                            color: theme.colorScheme.onSurfaceVariant,
+                          ),
                         ),
-                      ),
-                      if (_serverAddressMessage case final message?)
-                        Padding(
-                          padding: const EdgeInsets.only(top: 8),
-                          child: Semantics(
+                        const SizedBox(height: 12),
+                        FilledButton.icon(
+                          key: const Key('check-server-connectivity'),
+                          onPressed:
+                              _checkingConnectivity ||
+                                  widget.session!.bridgeUrl.isEmpty
+                              ? null
+                              : _checkConnectivity,
+                          icon: _checkingConnectivity
+                              ? const SizedBox(
+                                  width: 18,
+                                  height: 18,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                  ),
+                                )
+                              : const Icon(Icons.wifi_find_outlined),
+                          label: Text(
+                            _checkingConnectivity
+                                ? 'Checking…'
+                                : 'Check connection',
+                          ),
+                        ),
+                        if (_connectivityMessage == null &&
+                            providerAvailabilityError != null)
+                          Semantics(
+                            liveRegion: true,
+                            child: Text(
+                              'Provider availability could not be checked: '
+                              '$providerAvailabilityError',
+                              style: theme.textTheme.bodyMedium?.copyWith(
+                                color: theme.colorScheme.error,
+                              ),
+                            ),
+                          ),
+                        if (widget.session!.bridgeUrl.isEmpty)
+                          Text(
+                            'No saved bridge address.',
+                            style: theme.textTheme.bodySmall?.copyWith(
+                              color: theme.colorScheme.onSurfaceVariant,
+                            ),
+                          ),
+                        if (_connectivityMessage case final message?)
+                          Semantics(
                             liveRegion: true,
                             child: Text(
                               message,
                               style: theme.textTheme.bodyMedium?.copyWith(
-                                color: _serverAddressSaveSucceeded
+                                color: _connectivitySucceeded
                                     ? theme.colorScheme.primary
                                     : theme.colorScheme.error,
                               ),
                             ),
                           ),
-                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+              BrutalCard(
+                child: Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('Theme', style: theme.textTheme.titleMedium),
+                      const SizedBox(height: 12),
+                      SegmentedButton<ThemeMode>(
+                        segments: const [
+                          ButtonSegment(
+                            value: ThemeMode.system,
+                            label: Text('System'),
+                            icon: Icon(Icons.settings_brightness_outlined),
+                          ),
+                          ButtonSegment(
+                            value: ThemeMode.light,
+                            label: Text('Light'),
+                            icon: Icon(Icons.light_mode_outlined),
+                          ),
+                          ButtonSegment(
+                            value: ThemeMode.dark,
+                            label: Text('Dark'),
+                            icon: Icon(Icons.dark_mode_outlined),
+                          ),
+                        ],
+                        selected: {preferences.themeMode},
+                        onSelectionChanged: (selection) =>
+                            _saveTheme(context, preferences, selection.first),
+                      ),
                     ],
                   ),
                 ),
-                const SizedBox(height: 28),
-                Text('Server connection', style: theme.textTheme.titleMedium),
-                const SizedBox(height: 4),
-                Text(
-                  'Check whether your saved bridge server is reachable.',
-                  style: theme.textTheme.bodyMedium?.copyWith(
-                    color: theme.colorScheme.onSurfaceVariant,
-                  ),
-                ),
-                const SizedBox(height: 12),
-                FilledButton.icon(
-                  key: const Key('check-server-connectivity'),
-                  onPressed:
-                      _checkingConnectivity || widget.session!.bridgeUrl.isEmpty
-                      ? null
-                      : _checkConnectivity,
-                  icon: _checkingConnectivity
-                      ? const SizedBox(
-                          width: 18,
-                          height: 18,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        )
-                      : const Icon(Icons.wifi_find_outlined),
-                  label: Text(
-                    _checkingConnectivity ? 'Checking…' : 'Check connection',
-                  ),
-                ),
-                if (_connectivityMessage == null &&
-                    providerAvailabilityError != null)
-                  Semantics(
-                    liveRegion: true,
-                    child: Text(
-                      'Provider availability could not be checked: '
-                      '$providerAvailabilityError',
-                      style: theme.textTheme.bodyMedium?.copyWith(
-                        color: theme.colorScheme.error,
-                      ),
-                    ),
-                  ),
-                if (widget.session!.bridgeUrl.isEmpty)
-                  Text(
-                    'No saved bridge address.',
-                    style: theme.textTheme.bodySmall?.copyWith(
-                      color: theme.colorScheme.onSurfaceVariant,
-                    ),
-                  ),
-                if (_connectivityMessage case final message?)
-                  Semantics(
-                    liveRegion: true,
-                    child: Text(
-                      message,
-                      style: theme.textTheme.bodyMedium?.copyWith(
-                        color: _connectivitySucceeded
-                            ? theme.colorScheme.primary
-                            : theme.colorScheme.error,
-                      ),
-                    ),
-                  ),
-                const SizedBox(height: 28),
-              ],
-              Text('Theme', style: theme.textTheme.titleMedium),
-              const SizedBox(height: 12),
-              SegmentedButton<ThemeMode>(
-                segments: const [
-                  ButtonSegment(
-                    value: ThemeMode.system,
-                    label: Text('System'),
-                    icon: Icon(Icons.settings_brightness_outlined),
-                  ),
-                  ButtonSegment(
-                    value: ThemeMode.light,
-                    label: Text('Light'),
-                    icon: Icon(Icons.light_mode_outlined),
-                  ),
-                  ButtonSegment(
-                    value: ThemeMode.dark,
-                    label: Text('Dark'),
-                    icon: Icon(Icons.dark_mode_outlined),
-                  ),
-                ],
-                selected: {preferences.themeMode},
-                onSelectionChanged: (selection) =>
-                    _saveTheme(context, preferences, selection.first),
               ),
               const SizedBox(height: 28),
-              Text('Accent color', style: theme.textTheme.titleMedium),
-              const SizedBox(height: 4),
-              Text(
-                'Choose a preset or adjust a custom color.',
-                style: theme.textTheme.bodyMedium?.copyWith(
-                  color: theme.colorScheme.onSurfaceVariant,
-                ),
-              ),
-              const SizedBox(height: 12),
-              Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                children: [
-                  for (final option in _accents)
-                    ChoiceChip(
-                      avatar: CircleAvatar(
-                        backgroundColor: option.color,
-                        radius: 8,
+              BrutalCard(
+                child: Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('Accent color', style: theme.textTheme.titleMedium),
+                      const SizedBox(height: 4),
+                      Text(
+                        'Choose a preset or adjust a custom color.',
+                        style: theme.textTheme.bodyMedium?.copyWith(
+                          color: theme.colorScheme.onSurfaceVariant,
+                        ),
                       ),
-                      label: Text(option.label),
-                      selected: selectedAccent == option.color,
-                      onSelected: (_) =>
-                          _saveAccentColor(context, preferences, option.color),
-                    ),
-                  ChoiceChip(
-                    avatar: CircleAvatar(
-                      backgroundColor: selectedAccent,
-                      radius: 8,
-                    ),
-                    label: const Text('Custom'),
-                    selected: !isPreset,
-                    onSelected: (_) async {
-                      final color = await showDialog<Color>(
-                        context: context,
-                        builder: (_) =>
-                            _CustomAccentDialog(initialColor: selectedAccent),
-                      );
-                      if (!context.mounted) return;
-                      if (color != null) {
-                        await _saveAccentColor(context, preferences, color);
-                      }
-                    },
-                  ),
-                ],
-              ),
-              const SizedBox(height: 24),
-              Card(
-                elevation: 0,
-                color: theme.colorScheme.surfaceContainerHighest,
-                child: ListTile(
-                  leading: Icon(
-                    Icons.palette_outlined,
-                    color: theme.colorScheme.primary,
-                  ),
-                  title: const Text('Accent preview'),
-                  subtitle: const Text('Buttons and controls use this color.'),
-                  trailing: Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 14,
-                      vertical: 8,
-                    ),
-                    decoration: BoxDecoration(
-                      color: theme.colorScheme.primary,
-                      borderRadius: BorderRadius.circular(20),
-                    ),
-                    child: Text(
-                      'Aa',
-                      style: TextStyle(
-                        color: theme.colorScheme.onPrimary,
-                        fontWeight: FontWeight.w700,
+                      const SizedBox(height: 12),
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 8,
+                        children: [
+                          for (final option in _accents)
+                            ChoiceChip(
+                              avatar: CircleAvatar(
+                                backgroundColor: option.color,
+                                radius: 8,
+                              ),
+                              label: Text(option.label),
+                              selected: selectedAccent == option.color,
+                              onSelected: (_) => _saveAccentColor(
+                                context,
+                                preferences,
+                                option.color,
+                              ),
+                            ),
+                          ChoiceChip(
+                            avatar: CircleAvatar(
+                              backgroundColor: selectedAccent,
+                              radius: 8,
+                            ),
+                            label: const Text('Custom'),
+                            selected: !isPreset,
+                            onSelected: (_) async {
+                              final color = await showDialog<Color>(
+                                context: context,
+                                builder: (_) => _CustomAccentDialog(
+                                  initialColor: selectedAccent,
+                                ),
+                              );
+                              if (!context.mounted) return;
+                              if (color != null) {
+                                await _saveAccentColor(
+                                  context,
+                                  preferences,
+                                  color,
+                                );
+                              }
+                            },
+                          ),
+                        ],
                       ),
-                    ),
+                      const SizedBox(height: 16),
+                      BrutalBox(
+                        shadowOffset: const Offset(2, 2),
+                        child: ListTile(
+                          leading: Icon(
+                            Icons.palette_outlined,
+                            color: theme.colorScheme.primary,
+                          ),
+                          title: const Text('Accent preview'),
+                          subtitle: const Text(
+                            'Buttons and controls use this color.',
+                          ),
+                          trailing: Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 14,
+                              vertical: 8,
+                            ),
+                            decoration: BoxDecoration(
+                              color: theme.colorScheme.primary,
+                              borderRadius: BorderRadius.circular(brutalRadius),
+                              border: Border.all(
+                                color: brutalInk(context),
+                                width: brutalBorderWidth,
+                              ),
+                            ),
+                            child: Text(
+                              'Aa',
+                              style: TextStyle(
+                                color: theme.colorScheme.onPrimary,
+                                fontWeight: FontWeight.w900,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
                 ),
               ),

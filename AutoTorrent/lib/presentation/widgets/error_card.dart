@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import 'brutal.dart';
+
 class ErrorCard extends StatelessWidget {
   const ErrorCard({super.key, required this.message, required this.onRetry});
 
@@ -7,8 +9,7 @@ class ErrorCard extends StatelessWidget {
   final VoidCallback onRetry;
 
   @override
-  Widget build(BuildContext context) => Card(
-    elevation: 0,
+  Widget build(BuildContext context) => BrutalCard(
     color: Theme.of(context).colorScheme.errorContainer,
     child: Padding(
       padding: const EdgeInsets.all(16),

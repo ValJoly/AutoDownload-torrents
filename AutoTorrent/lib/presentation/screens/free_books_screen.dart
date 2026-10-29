@@ -8,6 +8,7 @@ import '../bloc/torrent_bloc.dart';
 import '../bloc/torrent_event.dart';
 import '../bloc/torrent_state.dart';
 import '../widgets/book_cover.dart';
+import '../widgets/brutal.dart';
 import '../widgets/source_app_bar.dart';
 
 const _bookLanguages = {
@@ -121,20 +122,26 @@ class _FreeBooksScreenState extends State<FreeBooksScreen> {
                   ),
                 ),
                 const SizedBox(height: 20),
-                DropdownButtonFormField<String>(
-                  initialValue: _language,
-                  decoration: const InputDecoration(labelText: 'Book language'),
-                  items: _bookLanguages.entries
-                      .map(
-                        (entry) => DropdownMenuItem(
-                          value: entry.key,
-                          child: Text(entry.value),
-                        ),
-                      )
-                      .toList(),
-                  onChanged: (language) {
-                    if (language != null) setState(() => _language = language);
-                  },
+                BrutalField(
+                  child: DropdownButtonFormField<String>(
+                    initialValue: _language,
+                    decoration: const InputDecoration(
+                      labelText: 'Book language',
+                    ),
+                    items: _bookLanguages.entries
+                        .map(
+                          (entry) => DropdownMenuItem(
+                            value: entry.key,
+                            child: Text(entry.value),
+                          ),
+                        )
+                        .toList(),
+                    onChanged: (language) {
+                      if (language != null) {
+                        setState(() => _language = language);
+                      }
+                    },
+                  ),
                 ),
                 SwitchListTile.adaptive(
                   key: const Key('gutenberg-only-toggle'),
@@ -145,17 +152,19 @@ class _FreeBooksScreenState extends State<FreeBooksScreen> {
                   onChanged: (value) => setState(() => _gutenbergOnly = value),
                 ),
                 const SizedBox(height: 12),
-                TextField(
-                  controller: _searchController,
-                  textInputAction: TextInputAction.search,
-                  onSubmitted: (_) => _search(),
-                  decoration: InputDecoration(
-                    hintText: 'Search books by title or author',
-                    prefixIcon: const Icon(Icons.search),
-                    suffixIcon: IconButton(
-                      tooltip: 'Search free books',
-                      onPressed: state.loading ? null : _search,
-                      icon: const Icon(Icons.arrow_forward_rounded),
+                BrutalField(
+                  child: TextField(
+                    controller: _searchController,
+                    textInputAction: TextInputAction.search,
+                    onSubmitted: (_) => _search(),
+                    decoration: InputDecoration(
+                      hintText: 'Search books by title or author',
+                      prefixIcon: const Icon(Icons.search),
+                      suffixIcon: IconButton(
+                        tooltip: 'Search free books',
+                        onPressed: state.loading ? null : _search,
+                        icon: const Icon(Icons.arrow_forward_rounded),
+                      ),
                     ),
                   ),
                 ),
@@ -220,9 +229,7 @@ class _FreeBookCard extends StatelessWidget {
         .map((language) => _bookLanguages[language] ?? language.toUpperCase())
         .join(', ');
 
-    return Card(
-      margin: const EdgeInsets.only(bottom: 12),
-      elevation: 0,
+    return BrutalCard(
       child: Padding(
         padding: const EdgeInsets.all(16),
         child: Row(

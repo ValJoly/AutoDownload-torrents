@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
+import 'brutal.dart';
+
 class SourceNavigationShell extends StatelessWidget {
   const SourceNavigationShell({
     required this.navigationShell,
@@ -33,8 +35,6 @@ class SourceNavigationShell extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final colors = theme.colorScheme;
     final destinations = _destinations
         .where(
           (destination) =>
@@ -47,42 +47,29 @@ class SourceNavigationShell extends StatelessWidget {
       body: navigationShell,
       bottomNavigationBar: SafeArea(
         top: false,
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(16, 6, 16, 10),
-          child: DecoratedBox(
-            decoration: BoxDecoration(
-              color: colors.surfaceContainerLow,
-              borderRadius: BorderRadius.circular(28),
-              border: Border.all(color: colors.outlineVariant.withAlpha(100)),
-              boxShadow: [
-                BoxShadow(
-                  color: colors.shadow.withAlpha(36),
-                  blurRadius: 18,
-                  offset: const Offset(0, 6),
-                ),
-              ],
-            ),
-            child: Padding(
-              padding: const EdgeInsets.all(5),
-              child: Row(
-                children: [
-                  for (final destination in destinations)
-                    Expanded(
-                      child: _NavigationDestinationButton(
-                        destination: destination,
-                        selected:
-                            navigationShell.currentIndex ==
-                            destination.branchIndex,
-                        onPressed: () => navigationShell.goBranch(
+        child: BrutalBox(
+          margin: const EdgeInsets.fromLTRB(14, 6, 18, 12),
+          child: Padding(
+            padding: const EdgeInsets.all(6),
+            child: Row(
+              spacing: 6,
+              children: [
+                for (final destination in destinations)
+                  Expanded(
+                    child: _NavigationDestinationButton(
+                      destination: destination,
+                      selected:
+                          navigationShell.currentIndex ==
                           destination.branchIndex,
-                          initialLocation:
-                              destination.branchIndex ==
-                              navigationShell.currentIndex,
-                        ),
+                      onPressed: () => navigationShell.goBranch(
+                        destination.branchIndex,
+                        initialLocation:
+                            destination.branchIndex ==
+                            navigationShell.currentIndex,
                       ),
                     ),
-                ],
-              ),
+                  ),
+              ],
             ),
           ),
         ),
@@ -105,6 +92,7 @@ class _NavigationDestinationButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
+    final ink = brutalInk(context);
 
     return Semantics(
       button: true,
@@ -114,44 +102,40 @@ class _NavigationDestinationButton extends StatelessWidget {
         message: destination.label,
         child: InkWell(
           onTap: onPressed,
-          borderRadius: BorderRadius.circular(24),
+          splashColor: Colors.transparent,
+          highlightColor: Colors.transparent,
+          hoverColor: Colors.transparent,
+          borderRadius: BorderRadius.circular(brutalRadius),
           child: AnimatedContainer(
-            duration: const Duration(milliseconds: 180),
-            curve: Curves.easeInOutCubic,
-            height: 58,
-            padding: const EdgeInsets.symmetric(horizontal: 8),
+            duration: const Duration(milliseconds: 150),
+            curve: Curves.easeOut,
+            height: 50,
+            padding: const EdgeInsets.symmetric(horizontal: 6),
             decoration: BoxDecoration(
-              color: selected ? colors.primaryContainer : Colors.transparent,
-              borderRadius: BorderRadius.circular(24),
+              color: selected ? colors.primary : Colors.transparent,
+              borderRadius: BorderRadius.circular(brutalRadius - 1),
+              border: Border.all(
+                color: selected ? ink : Colors.transparent,
+                width: 2,
+              ),
             ),
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                TweenAnimationBuilder<Color?>(
-                  tween: ColorTween(
-                    end: selected
-                        ? colors.onPrimaryContainer
-                        : colors.onSurfaceVariant,
-                  ),
-                  duration: const Duration(milliseconds: 180),
-                  curve: Curves.easeInOutCubic,
-                  builder: (context, color, _) =>
-                      Icon(destination.icon, color: color, size: 21),
+                Icon(
+                  destination.icon,
+                  color: selected ? colors.onPrimary : ink,
+                  size: 20,
                 ),
-                const SizedBox(height: 3),
-                AnimatedDefaultTextStyle(
-                  duration: const Duration(milliseconds: 180),
-                  curve: Curves.easeInOutCubic,
+                const SizedBox(height: 2),
+                Text(
+                  destination.label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                   style: Theme.of(context).textTheme.labelSmall!.copyWith(
-                    color: selected
-                        ? colors.onPrimaryContainer
-                        : colors.onSurfaceVariant,
-                    fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
-                  ),
-                  child: Text(
-                    destination.label,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
+                    color: selected ? colors.onPrimary : ink,
+                    fontWeight: FontWeight.w800,
+                    height: 1.1,
                   ),
                 ),
               ],

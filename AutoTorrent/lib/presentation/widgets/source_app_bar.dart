@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../core/auth_session.dart';
+import 'brutal.dart';
 
 class SourceAppBar extends StatelessWidget implements PreferredSizeWidget {
   const SourceAppBar({
@@ -34,16 +35,16 @@ class SourceAppBar extends StatelessWidget implements PreferredSizeWidget {
       title: Row(
         children: [
           Container(
-            padding: const EdgeInsets.all(8),
+            padding: const EdgeInsets.all(6),
             decoration: BoxDecoration(
-              color: theme.colorScheme.primary,
-              borderRadius: BorderRadius.circular(11),
+              color: theme.scaffoldBackgroundColor,
+              borderRadius: BorderRadius.circular(brutalRadius),
+              border: Border.all(
+                color: brutalInk(context),
+                width: brutalBorderWidth,
+              ),
             ),
-            child: Icon(
-              Icons.bolt,
-              color: theme.colorScheme.onPrimary,
-              size: 20,
-            ),
+            child: Icon(Icons.bolt, color: brutalInk(context), size: 20),
           ),
           const SizedBox(width: 11),
           const Expanded(
@@ -51,7 +52,7 @@ class SourceAppBar extends StatelessWidget implements PreferredSizeWidget {
               'SkyForge',
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
-              style: TextStyle(fontWeight: FontWeight.w800),
+              style: TextStyle(fontWeight: FontWeight.w900, letterSpacing: 1),
             ),
           ),
         ],
