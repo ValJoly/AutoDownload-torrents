@@ -16,9 +16,14 @@ class AppearanceSettingsScreen extends StatefulWidget {
 }
 
 class _AppearanceSettingsScreenState extends State<AppearanceSettingsScreen> {
+  final _serverAddressFormKey = GlobalKey<FormState>();
+  late final TextEditingController _serverAddressController;
   bool _checkingConnectivity = false;
+  bool _savingServerAddress = false;
   String? _connectivityMessage;
   bool _connectivitySucceeded = false;
+  String? _serverAddressMessage;
+  bool _serverAddressSaveSucceeded = false;
 
   static const _accents = [
     _AccentOption('Rose', Color(0xFFEAA4BD)),
@@ -29,6 +34,20 @@ class _AppearanceSettingsScreenState extends State<AppearanceSettingsScreen> {
     _AccentOption('Coral', Color(0xFFCB665B)),
     _AccentOption('Violet', Color(0xFF8167B6)),
   ];
+
+  @override
+  void initState() {
+    super.initState();
+    _serverAddressController = TextEditingController(
+      text: widget.session?.bridgeUrl ?? '',
+    );
+  }
+
+  @override
+  void dispose() {
+    _serverAddressController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -48,11 +67,80 @@ class _AppearanceSettingsScreenState extends State<AppearanceSettingsScreen> {
         );
 
         return Scaffold(
-          appBar: AppBar(title: const Text('Appearance')),
+          appBar: AppBar(title: const Text('Settings')),
           body: ListView(
             padding: const EdgeInsets.fromLTRB(20, 12, 20, 32),
             children: [
               if (widget.session != null) ...[
+                Text('Server address', style: theme.textTheme.titleMedium),
+                const SizedBox(height: 4),
+                Text(
+                  'Changing servers signs you out of the current server.',
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Form(
+                  key: _serverAddressFormKey,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      TextFormField(
+                        key: const Key('server-address'),
+                        controller: _serverAddressController,
+                        keyboardType: TextInputType.url,
+                        textInputAction: TextInputAction.done,
+                        validator: (value) =>
+                            value == null || value.trim().isEmpty
+                            ? 'Bridge address is required.'
+                            : null,
+                        decoration: const InputDecoration(
+                          labelText: 'Bridge address',
+                          hintText: 'https://bridge.example.com',
+                          prefixIcon: Icon(Icons.link),
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      FilledButton.icon(
+                        key: const Key('save-server-address'),
+                        onPressed: _savingServerAddress
+                            ? null
+                            : _saveServerAddress,
+                        icon: _savingServerAddress
+                            ? const SizedBox(
+                                width: 18,
+                                height: 18,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                ),
+                              )
+                            : const Icon(Icons.save_outlined),
+                        label: Text(
+                          _savingServerAddress
+                              ? 'Saving…'
+                              : 'Save server address',
+                        ),
+                      ),
+                      if (_serverAddressMessage case final message?)
+                        Padding(
+                          padding: const EdgeInsets.only(top: 8),
+                          child: Semantics(
+                            liveRegion: true,
+                            child: Text(
+                              message,
+                              style: theme.textTheme.bodyMedium?.copyWith(
+                                color: _serverAddressSaveSucceeded
+                                    ? theme.colorScheme.primary
+                                    : theme.colorScheme.error,
+                              ),
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 28),
                 Text('Server connection', style: theme.textTheme.titleMedium),
                 const SizedBox(height: 4),
                 Text(
@@ -217,6 +305,36 @@ class _AppearanceSettingsScreenState extends State<AppearanceSettingsScreen> {
         );
       },
     );
+  }
+
+  Future<void> _saveServerAddress() async {
+    if (!_serverAddressFormKey.currentState!.validate()) return;
+
+    setState(() {
+      _savingServerAddress = true;
+      _serverAddressMessage = null;
+    });
+    try {
+      final changed = await widget.session!.updateBridgeUrl(
+        _serverAddressController.text,
+      );
+      if (!mounted) return;
+      setState(() {
+        _serverAddressSaveSucceeded = true;
+        _serverAddressMessage = changed
+            ? 'Server address saved. Sign in again to use this server.'
+            : 'Server address is unchanged.';
+      });
+    } catch (error) {
+      if (!mounted) return;
+      final details = error is BridgeException ? error.message : error;
+      setState(() {
+        _serverAddressSaveSucceeded = false;
+        _serverAddressMessage = 'Could not save server address: $details';
+      });
+    } finally {
+      if (mounted) setState(() => _savingServerAddress = false);
+    }
   }
 
   Future<void> _checkConnectivity() async {

@@ -6,6 +6,8 @@ import 'package:auto_torrent/core/auth_session.dart';
 import 'package:auto_torrent/data/api/bridge_api.dart';
 import 'package:auto_torrent/presentation/screens/appearance_settings_screen.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_secure_storage/test/test_flutter_secure_storage_platform.dart';
+import 'package:flutter_secure_storage_platform_interface/flutter_secure_storage_platform_interface.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
@@ -14,6 +16,9 @@ import 'package:shared_preferences/shared_preferences.dart';
 void main() {
   setUp(() {
     SharedPreferences.setMockInitialValues({});
+    FlutterSecureStoragePlatform.instance = TestFlutterSecureStoragePlatform({
+      'bridge_session_token': 'session-token',
+    });
   });
 
   test(
@@ -68,6 +73,42 @@ void main() {
     expect(preferences.accentColor, isNot(presetColor));
   });
 
+  testWidgets('shows and saves the bridge server address', (tester) async {
+    final api = BridgeApi(
+      clientFactory: () => MockClient(
+        (_) async =>
+            http.Response(jsonEncode({'tr4cker': true, 'c411': false}), 200),
+      ),
+    );
+    final session = AuthSession(api: api)
+      ..bridgeUrl = 'http://old-bridge.local'
+      ..accessToken = 'session-token'
+      ..role = 'owner';
+
+    await tester.pumpWidget(
+      MaterialApp(home: AppearanceSettingsScreen(session: session)),
+    );
+
+    final addressField = find.byKey(const Key('server-address'));
+    expect(
+      tester.widget<TextFormField>(addressField).controller!.text,
+      'http://old-bridge.local',
+    );
+    await tester.enterText(addressField, 'https://new-bridge.local/');
+    await tester.tap(find.byKey(const Key('save-server-address')));
+    await tester.pumpAndSettle();
+
+    expect(session.bridgeUrl, 'https://new-bridge.local');
+    expect(session.accessToken, isNull);
+    expect(session.isSignedIn, isFalse);
+    final preferences = await SharedPreferences.getInstance();
+    expect(preferences.getString('bridge_url'), 'https://new-bridge.local');
+    expect(
+      find.text('Server address saved. Sign in again to use this server.'),
+      findsOneWidget,
+    );
+  });
+
   testWidgets('checks the saved bridge and reports its health', (tester) async {
     final response = Completer<http.Response>();
     final api = BridgeApi(
@@ -81,9 +122,7 @@ void main() {
     final session = AuthSession(api: api)..bridgeUrl = 'http://bridge.local';
 
     await tester.pumpWidget(
-      MaterialApp(
-        home: AppearanceSettingsScreen(session: session),
-      ),
+      MaterialApp(home: AppearanceSettingsScreen(session: session)),
     );
     await tester.tap(find.text('Check connection'));
     await tester.pump();
@@ -107,9 +146,7 @@ void main() {
     final session = AuthSession(api: api)..bridgeUrl = 'http://bridge.local';
 
     await tester.pumpWidget(
-      MaterialApp(
-        home: AppearanceSettingsScreen(session: session),
-      ),
+      MaterialApp(home: AppearanceSettingsScreen(session: session)),
     );
     await tester.tap(find.text('Check connection'));
     await tester.pumpAndSettle();
@@ -134,9 +171,7 @@ void main() {
     final session = AuthSession(api: api)..bridgeUrl = 'http://bridge.local';
 
     await tester.pumpWidget(
-      MaterialApp(
-        home: AppearanceSettingsScreen(session: session),
-      ),
+      MaterialApp(home: AppearanceSettingsScreen(session: session)),
     );
     await tester.tap(find.text('Check connection'));
     await tester.pumpAndSettle();

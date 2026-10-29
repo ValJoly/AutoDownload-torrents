@@ -32,6 +32,8 @@ from download_progress import normalize_aria2_status
 from legal_books import (
     LegalBooksError,
     download_legal_book,
+    find_cover_url,
+    pick_cover_url,
     search_legal_books,
     validate_download_request,
 )
@@ -564,7 +566,15 @@ def search_torrents(
         f"{API_BASE_URL}/torrents",
         params={"cat": cat, "q": q},
     )
-    return response.json()
+    payload = response.json()
+    items = payload.get("torrents") if isinstance(payload, dict) else payload
+    if isinstance(items, list):
+        if items and isinstance(items[0], dict):
+            logger.info("TR4CKER result fields: %s", sorted(items[0]))
+        for item in items:
+            if isinstance(item, dict):
+                item.setdefault("cover_url", pick_cover_url(item))
+    return payload
 
 
 @app.get("/api/books/search")
@@ -619,6 +629,14 @@ def search_books(
         ) from exc
     print(f"Book search results count: {len(titles)} for filters: {filters}")
     return {"filters": filters, "results": titles}
+
+
+@app.get("/api/covers")
+def book_cover(
+    title: str = Query(..., min_length=2, max_length=300),
+    _credentials: Dict[str, Any] = Depends(require_api_credentials),
+) -> Dict[str, Optional[str]]:
+    return {"cover_url": find_cover_url(title)}
 
 
 @app.get("/api/books/free/search")

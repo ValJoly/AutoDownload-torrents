@@ -4,6 +4,7 @@ import os
 import re
 import tempfile
 import time
+from functools import lru_cache
 from typing import Any
 from pathlib import Path
 from urllib.parse import urlparse
@@ -24,6 +25,54 @@ _GUTENBERG_HOSTS = frozenset(
 
 class LegalBooksError(Exception):
     pass
+
+
+OPEN_LIBRARY_SEARCH = "https://openlibrary.org/search.json"
+_COVER_FIELDS = (
+    "classic_cover_url",
+    "cover_url",
+    "coverurl",
+    "poster_url",
+    "poster",
+    "cover",
+    "image",
+    "thumbnail",
+)
+
+
+def pick_cover_url(item: dict[str, Any]) -> str | None:
+    for field in _COVER_FIELDS:
+        value = item.get(field)
+        if isinstance(value, str) and value.startswith("https://"):
+            return value
+    return None
+
+
+def clean_cover_query(title: str) -> str:
+    title = re.sub(r"\[[^\]]*\]|\([^)]*\)", " ", title)
+    title = re.sub(r"[._]+", " ", title)
+    return " ".join(title.split())[:100]
+
+
+@lru_cache(maxsize=512)
+def find_cover_url(title: str) -> str | None:
+    query = clean_cover_query(title)
+    if not query:
+        return None
+    try:
+        response = requests.get(
+            OPEN_LIBRARY_SEARCH,
+            params={"q": query, "limit": 1, "fields": "cover_i"},
+            timeout=6,
+        )
+        response.raise_for_status()
+        docs = response.json().get("docs") or []
+    except (requests.exceptions.RequestException, ValueError, AttributeError):
+        return None
+    cover_id = docs[0].get("cover_i") if docs and isinstance(docs[0], dict) else None
+    if not isinstance(cover_id, int):
+        return None
+    return f"https://covers.openlibrary.org/b/id/{cover_id}-M.jpg"
 
 
 def validate_download_request(volume_id: str, file_format: str) -> None:
@@ -102,6 +151,11 @@ def normalize_book(book: Any) -> dict[str, Any] | None:
         ],
         "copyright": book.get("copyright") if isinstance(book.get("copyright"), bool) else None,
         "preview_link": f"https://www.gutenberg.org/ebooks/{book['id']}",
+        "cover_url": _safe_gutenberg_url(
+            book["formats"].get("image/jpeg")
+            if isinstance(book.get("formats"), dict)
+            else None
+        ),
         "formats": ["epub"] if epub_available else [],
         "source": "Project Gutenberg",
     }
@@ -137,6 +191,10 @@ def normalize_google_book(volume: Any) -> dict[str, Any] | None:
     if not isinstance(authors, list):
         authors = []
     language = info.get("language")
+    links = info.get("imageLinks")
+    thumbnail = links.get("thumbnail") if isinstance(links, dict) else None
+    if isinstance(thumbnail, str) and thumbnail.startswith("http://"):
+        thumbnail = "https://" + thumbnail[len("http://"):]
     return {
         "id": f"google-{volume['id']}",
         "title": title.strip()[:300],
@@ -146,6 +204,7 @@ def normalize_google_book(volume: Any) -> dict[str, Any] | None:
         "languages": [language.lower()] if isinstance(language, str) and len(language) == 2 else [],
         "copyright": None,
         "preview_link": _safe_google_link(info.get("previewLink")),
+        "cover_url": _safe_google_link(thumbnail),
         "formats": [],
         "source": "Google Books",
     }

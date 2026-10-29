@@ -208,7 +208,8 @@ void main() {
     expect(find.text('Books'), findsOneWidget);
     expect(find.text('SkyForge'), findsOneWidget);
     expect(find.byTooltip('Download history'), findsOneWidget);
-    expect(find.byTooltip('Appearance settings'), findsOneWidget);
+    expect(find.byTooltip('Settings'), findsOneWidget);
+    expect(find.byIcon(Icons.settings_outlined), findsOneWidget);
     expect(find.byTooltip('Manage invitations'), findsOneWidget);
     expect(find.byTooltip('Sign out'), findsOneWidget);
     expect(find.byType(NavigationBar), findsNothing);
@@ -236,7 +237,7 @@ void main() {
     expect(find.text('Project Gutenberg'), findsOneWidget);
     expect(find.text('SkyForge'), findsOneWidget);
     expect(find.byTooltip('Download history'), findsOneWidget);
-    expect(find.byTooltip('Appearance settings'), findsOneWidget);
+    expect(find.byTooltip('Settings'), findsOneWidget);
     expect(find.byTooltip('Manage invitations'), findsOneWidget);
     expect(find.byTooltip('Sign out'), findsOneWidget);
     await tester.tap(find.byTooltip('Download history'));

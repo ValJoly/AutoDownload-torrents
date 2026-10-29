@@ -70,8 +70,8 @@ class SourceAppBar extends StatelessWidget implements PreferredSizeWidget {
         ),
         IconButton(
           onPressed: () => context.push('/settings'),
-          tooltip: 'Appearance settings',
-          icon: const Icon(Icons.palette_outlined),
+          tooltip: 'Settings',
+          icon: const Icon(Icons.settings_outlined),
         ),
         if (session.isOwner)
           IconButton(

@@ -7,6 +7,7 @@ import '../../data/api/bridge_api.dart';
 import '../bloc/torrent_bloc.dart';
 import '../bloc/torrent_event.dart';
 import '../bloc/torrent_state.dart';
+import '../widgets/book_cover.dart';
 import '../widgets/source_app_bar.dart';
 
 const _bookLanguages = {
@@ -212,72 +213,83 @@ class _FreeBookCard extends StatelessWidget {
       elevation: 0,
       child: Padding(
         padding: const EdgeInsets.all(16),
-        child: Column(
+        child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
-              book.title,
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-              style: theme.textTheme.titleMedium?.copyWith(
-                fontWeight: FontWeight.w700,
+            BookCover(url: book.coverUrl),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    book.title,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: theme.textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  if (book.authors.isNotEmpty) ...[
+                    const SizedBox(height: 4),
+                    Text(book.authors.join(', ')),
+                  ],
+                  const SizedBox(height: 8),
+                  Text(
+                    '${book.source}${languages.isEmpty ? '' : ' · $languages'}',
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: theme.colorScheme.onSurfaceVariant,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  if (book.copyright != null) ...[
+                    const SizedBox(height: 4),
+                    Text(
+                      book.copyright == false
+                          ? 'Catalog marks this book as public domain in the US.'
+                          : 'Catalog marks this book as copyrighted in the US.',
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: theme.colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                  ],
+                  if (book.publishedDate.isNotEmpty) ...[
+                    const SizedBox(height: 4),
+                    Text('Released ${book.publishedDate}'),
+                  ],
+                  if (book.description.isNotEmpty) ...[
+                    const SizedBox(height: 8),
+                    Text(
+                      book.description,
+                      maxLines: 4,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ],
+                  if (canOpenPreview)
+                    TextButton.icon(
+                      onPressed: () => launchUrl(
+                        previewUri,
+                        mode: LaunchMode.externalApplication,
+                      ),
+                      icon: const Icon(Icons.open_in_new, size: 18),
+                      label: Text('Open in ${book.source}'),
+                    ),
+                  if (book.formats.contains('epub'))
+                    FilledButton.icon(
+                      onPressed: onDownload,
+                      icon: const Icon(Icons.download_outlined, size: 18),
+                      label: const Text('Download EPUB to computer'),
+                    )
+                  else
+                    Text(
+                      'Open the source page for reading and download options.',
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: theme.colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                ],
               ),
             ),
-            if (book.authors.isNotEmpty) ...[
-              const SizedBox(height: 4),
-              Text(book.authors.join(', ')),
-            ],
-            const SizedBox(height: 8),
-            Text(
-              '${book.source}${languages.isEmpty ? '' : ' · $languages'}',
-              style: theme.textTheme.bodySmall?.copyWith(
-                color: theme.colorScheme.onSurfaceVariant,
-                fontWeight: FontWeight.w700,
-              ),
-            ),
-            if (book.copyright != null) ...[
-              const SizedBox(height: 4),
-              Text(
-                book.copyright == false
-                    ? 'Catalog marks this book as public domain in the US.'
-                    : 'Catalog marks this book as copyrighted in the US.',
-                style: theme.textTheme.bodySmall?.copyWith(
-                  color: theme.colorScheme.onSurfaceVariant,
-                ),
-              ),
-            ],
-            if (book.publishedDate.isNotEmpty) ...[
-              const SizedBox(height: 4),
-              Text('Released ${book.publishedDate}'),
-            ],
-            if (book.description.isNotEmpty) ...[
-              const SizedBox(height: 8),
-              Text(
-                book.description,
-                maxLines: 4,
-                overflow: TextOverflow.ellipsis,
-              ),
-            ],
-            if (canOpenPreview)
-              TextButton.icon(
-                onPressed: () =>
-                    launchUrl(previewUri, mode: LaunchMode.externalApplication),
-                icon: const Icon(Icons.open_in_new, size: 18),
-                label: Text('Open in ${book.source}'),
-              ),
-            if (book.formats.contains('epub'))
-              FilledButton.icon(
-                onPressed: onDownload,
-                icon: const Icon(Icons.download_outlined, size: 18),
-                label: const Text('Download EPUB to computer'),
-              )
-            else
-              Text(
-                'Open the source page for reading and download options.',
-                style: theme.textTheme.bodySmall?.copyWith(
-                  color: theme.colorScheme.onSurfaceVariant,
-                ),
-              ),
           ],
         ),
       ),

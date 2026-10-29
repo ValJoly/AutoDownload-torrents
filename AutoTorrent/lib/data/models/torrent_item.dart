@@ -6,8 +6,10 @@ class TorrentItem {
     required this.seeders,
     required this.files,
     this.source = 'tr4cker',
+    this.coverUrl,
   });
 
+  final String? coverUrl;
   final String slug;
   final String name;
   final String size;
@@ -22,6 +24,7 @@ class TorrentItem {
     seeders: _asInt(json['seeders']),
     files: _asInt(json['file_count']),
     source: '${json['source'] ?? 'tr4cker'}',
+    coverUrl: json['cover_url'] as String?,
   );
 
   static int _asInt(dynamic value) =>

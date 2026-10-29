@@ -37,6 +37,7 @@ class C411SearchTests(unittest.TestCase):
                     "file_count": 3,
                     "seeders": 7,
                     "source": "c411",
+                    "cover_url": None,
                 }
             ],
         )

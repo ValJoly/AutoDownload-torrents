@@ -8,6 +8,8 @@ from urllib.parse import parse_qs, urlparse
 
 import requests
 
+from legal_books import pick_cover_url
+
 C411_API_URL = "https://c411.org/api/torznab"
 C411_CATEGORIES = {"livres": "7020", "livres-audio": "3030"}
 _TORRENT_ID_PATTERN = re.compile(r"(?:\d{1,32}|[a-fA-F0-9]{40})")
@@ -103,6 +105,7 @@ def parse_torznab_results(content: bytes) -> list[dict[str, object]]:
                 "file_count": _number(attributes.get("files", "")),
                 "seeders": _number(attributes.get("seeders", "")),
                 "source": "c411",
+                "cover_url": pick_cover_url(attributes),
             }
         )
     return results

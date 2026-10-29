@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 
+import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 
 import '../models/torrent_item.dart';
@@ -174,8 +175,10 @@ class LegalBook {
     this.copyright,
     this.source = 'Project Gutenberg',
     this.previewLink,
+    this.coverUrl,
   });
 
+  final String? coverUrl;
   final String id;
   final String title;
   final List<String> authors;
@@ -204,6 +207,7 @@ class LegalBook {
         .whereType<String>()
         .toList(),
     previewLink: json['preview_link'] as String?,
+    coverUrl: json['cover_url'] as String?,
   );
 }
 
@@ -260,7 +264,9 @@ class BridgeApi {
           .timeout(const Duration(seconds: 12));
       final data = _decode(response);
       if (data is! Map<String, dynamic> || data['status'] != 'ok') {
-        throw BridgeException('The bridge health check returned an unhealthy response.');
+        throw BridgeException(
+          'The bridge health check returned an unhealthy response.',
+        );
       }
     } on TimeoutException {
       throw BridgeException('The bridge connectivity check timed out.');
@@ -512,6 +518,7 @@ class BridgeApi {
             ),
           );
       final data = _decode(response);
+      debugPrint('[$source] search "$query" -> ${jsonEncode(data)}');
       final list = data is Map<String, dynamic> ? data['torrents'] : data;
       if (list is! List) {
         throw BridgeException(
@@ -526,6 +533,27 @@ class BridgeApi {
       throw BridgeException(
         'The bridge search timed out. Check the bridge address and server.',
       );
+    } finally {
+      client.close();
+    }
+  }
+
+  Future<String?> coverUrl(
+    String bridgeUrl,
+    String title,
+    String sessionToken,
+  ) async {
+    final uri = Uri.parse('${_base(bridgeUrl)}/api/covers')
+        .replace(queryParameters: {'title': title});
+    final client = _clientFactory();
+    try {
+      final response = await client
+          .get(uri, headers: _authHeaders(sessionToken))
+          .timeout(const Duration(seconds: 10));
+      final data = _decode(response);
+      return data is Map<String, dynamic> ? data['cover_url'] as String? : null;
+    } catch (_) {
+      return null;
     } finally {
       client.close();
     }

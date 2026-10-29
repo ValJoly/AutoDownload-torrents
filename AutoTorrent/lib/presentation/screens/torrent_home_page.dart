@@ -6,6 +6,7 @@ import '../../data/models/torrent_item.dart';
 import '../bloc/torrent_bloc.dart';
 import '../bloc/torrent_event.dart';
 import '../bloc/torrent_state.dart';
+import '../widgets/book_cover.dart';
 import '../widgets/source_app_bar.dart';
 
 class TorrentHomePage extends StatefulWidget {
@@ -225,6 +226,7 @@ class _TorrentHomePageState extends State<TorrentHomePage> {
                         ...state.results.map(
                           (torrent) => _TorrentCard(
                             torrent: torrent,
+                            session: widget.session,
                             onLaunch: () => _launch(torrent),
                           ),
                         ),
@@ -241,56 +243,100 @@ class _TorrentHomePageState extends State<TorrentHomePage> {
   }
 }
 
-class _TorrentCard extends StatelessWidget {
-  const _TorrentCard({required this.torrent, required this.onLaunch});
+class _TorrentCard extends StatefulWidget {
+  const _TorrentCard({
+    required this.torrent,
+    required this.session,
+    required this.onLaunch,
+  });
 
   final TorrentItem torrent;
+  final AuthSession session;
   final VoidCallback onLaunch;
+
+  @override
+  State<_TorrentCard> createState() => _TorrentCardState();
+}
+
+class _TorrentCardState extends State<_TorrentCard> {
+  String? _coverUrl;
+
+  @override
+  void initState() {
+    super.initState();
+    _coverUrl = widget.torrent.coverUrl;
+    if (_coverUrl == null) _loadCover();
+  }
+
+  Future<void> _loadCover() async {
+    final token = widget.session.accessToken;
+    if (token == null || token.isEmpty) return;
+    final url = await widget.session.api.coverUrl(
+      widget.session.bridgeUrl,
+      widget.torrent.name,
+      token,
+    );
+    if (mounted && url != null) setState(() => _coverUrl = url);
+  }
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final torrent = widget.torrent;
+    final onLaunch = widget.onLaunch;
     return Card(
       margin: const EdgeInsets.only(bottom: 12),
       elevation: 0,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
       child: Padding(
         padding: const EdgeInsets.all(16),
-        child: Column(
+        child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
-              torrent.name,
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-              style: theme.textTheme.titleMedium?.copyWith(
-                fontWeight: FontWeight.w700,
-              ),
-            ),
-            const SizedBox(height: 10),
-            Wrap(
-              spacing: 14,
-              runSpacing: 6,
-              children: [
-                _Stat(icon: Icons.sd_storage_outlined, text: torrent.size),
-                _Stat(
-                  icon: Icons.upload_outlined,
-                  text: '${torrent.seeders} seeders',
-                  color: Theme.of(context).colorScheme.tertiary,
-                ),
-                _Stat(
-                  icon: Icons.folder_copy_outlined,
-                  text: '${torrent.files} files',
-                ),
-              ],
-            ),
-            const SizedBox(height: 14),
-            SizedBox(
-              width: double.infinity,
-              child: FilledButton.icon(
-                onPressed: onLaunch,
-                icon: const Icon(Icons.download_rounded, size: 19),
-                label: const Text('Download to computer'),
+            BookCover(url: _coverUrl),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    torrent.name,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: theme.textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  Wrap(
+                    spacing: 14,
+                    runSpacing: 6,
+                    children: [
+                      _Stat(
+                        icon: Icons.sd_storage_outlined,
+                        text: torrent.size,
+                      ),
+                      _Stat(
+                        icon: Icons.upload_outlined,
+                        text: '${torrent.seeders} seeders',
+                        color: Theme.of(context).colorScheme.tertiary,
+                      ),
+                      _Stat(
+                        icon: Icons.folder_copy_outlined,
+                        text: '${torrent.files} files',
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 14),
+                  SizedBox(
+                    width: double.infinity,
+                    child: FilledButton.icon(
+                      onPressed: onLaunch,
+                      icon: const Icon(Icons.download_rounded, size: 19),
+                      label: const Text('Download to computer'),
+                    ),
+                  ),
+                ],
               ),
             ),
           ],

@@ -24,8 +24,8 @@ class DownloadsScreen extends StatelessWidget {
           actions: [
             IconButton(
               onPressed: () => context.push('/settings'),
-              tooltip: 'Appearance settings',
-              icon: const Icon(Icons.palette_outlined),
+              tooltip: 'Settings',
+              icon: const Icon(Icons.settings_outlined),
             ),
             IconButton(
               tooltip: 'Refresh downloads',

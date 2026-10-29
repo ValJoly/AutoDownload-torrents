@@ -59,9 +59,11 @@ class AuthSession extends ChangeNotifier {
     } catch (_) {
       // Keep the app usable when platform storage or the bridge is unavailable.
     } finally {
+      // Load providers before the first redirect, otherwise the router sends
+      // the user to Free books while the list is still empty.
+      if (bridgeUrl.isNotEmpty && isSignedIn) await _loadProviderAvailability();
       initialized = true;
       notifyListeners();
-      if (bridgeUrl.isNotEmpty) unawaited(_loadProviderAvailability());
     }
   }
 
@@ -101,6 +103,16 @@ class AuthSession extends ChangeNotifier {
 
   Future<void> revokeInvite(String inviteId) {
     return api.revokeInvite(bridgeUrl, _requireToken(), inviteId);
+  }
+
+  Future<bool> updateBridgeUrl(String value) async {
+    final previousBridgeUrl = bridgeUrl;
+    await _setBridgeUrl(value);
+    if (bridgeUrl == previousBridgeUrl) return false;
+
+    notifyListeners();
+    unawaited(_loadProviderAvailability());
+    return true;
   }
 
   Future<void> signOut() async {
@@ -143,8 +155,8 @@ class AuthSession extends ChangeNotifier {
     role = session.role;
     accessToken = session.accessToken;
     initialized = true;
+    await _loadProviderAvailability();
     notifyListeners();
-    unawaited(_loadProviderAvailability());
   }
 
   Future<void> _loadProviderAvailability() async {
