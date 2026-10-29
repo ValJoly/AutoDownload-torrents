@@ -55,21 +55,23 @@ class LegalBooksSearchRequested extends TorrentEvent {
 }
 
 class SearchValidationFailed extends TorrentEvent {
-  const SearchValidationFailed(this.message);
+  const SearchValidationFailed(this.message, {this.source = 'tr4cker'});
 
   final String message;
+  final String source;
 
   @override
-  List<Object?> get props => [message];
+  List<Object?> get props => [message, source];
 }
 
 class LibraryChanged extends TorrentEvent {
-  const LibraryChanged(this.library);
+  const LibraryChanged(this.library, {this.source = 'tr4cker'});
 
   final String library;
+  final String source;
 
   @override
-  List<Object?> get props => [library];
+  List<Object?> get props => [library, source];
 }
 
 class LaunchRequested extends TorrentEvent {

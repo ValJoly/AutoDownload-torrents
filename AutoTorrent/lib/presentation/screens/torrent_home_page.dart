@@ -37,15 +37,19 @@ class _TorrentHomePageState extends State<TorrentHomePage> {
     final sessionToken = widget.session.accessToken;
     if (sessionToken == null || sessionToken.isEmpty) {
       context.read<TorrentBloc>().add(
-        const SearchValidationFailed('Sign in to your bridge to search.'),
+        SearchValidationFailed(
+          'Sign in to your bridge to search.',
+          source: widget.source,
+        ),
       );
       return;
     }
     final query = _searchController.text.trim();
     if (query.isEmpty) {
       context.read<TorrentBloc>().add(
-        const SearchValidationFailed(
+        SearchValidationFailed(
           'Enter a title, author, or keyword to search.',
+          source: widget.source,
         ),
       );
       return;
@@ -66,8 +70,9 @@ class _TorrentHomePageState extends State<TorrentHomePage> {
     final sessionToken = widget.session.accessToken;
     if (sessionToken == null || sessionToken.isEmpty) {
       context.read<TorrentBloc>().add(
-        const SearchValidationFailed(
+        SearchValidationFailed(
           'Sign in to your bridge to launch downloads.',
+          source: widget.source,
         ),
       );
       return;
@@ -86,12 +91,13 @@ class _TorrentHomePageState extends State<TorrentHomePage> {
   @override
   Widget build(BuildContext context) {
     return BlocBuilder<TorrentBloc, TorrentState>(
-      builder: (context, state) {
+      builder: (context, appState) {
+        final state = appState.pane(widget.source);
         final theme = Theme.of(context);
         return Scaffold(
           appBar: SourceAppBar(
             session: widget.session,
-            activeDownloadCount: state.activeDownloadCount,
+            activeDownloadCount: appState.activeDownloadCount,
           ),
           body: SafeArea(
             child: CustomScrollView(
@@ -167,7 +173,10 @@ class _TorrentHomePageState extends State<TorrentHomePage> {
                               onSelected: (_) {
                                 setState(() => _library = 'audiobooks');
                                 context.read<TorrentBloc>().add(
-                                  const LibraryChanged('audiobooks'),
+                                  LibraryChanged(
+                                    'audiobooks',
+                                    source: widget.source,
+                                  ),
                                 );
                               },
                             ),
@@ -196,7 +205,10 @@ class _TorrentHomePageState extends State<TorrentHomePage> {
                               onSelected: (_) {
                                 setState(() => _library = 'books');
                                 context.read<TorrentBloc>().add(
-                                  const LibraryChanged('books'),
+                                  LibraryChanged(
+                                    'books',
+                                    source: widget.source,
+                                  ),
                                 );
                               },
                             ),

@@ -111,24 +111,31 @@ class TorrentBloc extends Bloc<TorrentEvent, TorrentState> {
     SearchRequested event,
     Emitter<TorrentState> emit,
   ) async {
-    emit(state.copyWith(loading: true, error: null));
+    final source = event.source;
+    emit(state.withPane(source, (p) => p.copyWith(loading: true)));
     try {
       final results = await _api.search(
         event.bridgeUrl,
         event.query,
         event.library,
         event.sessionToken,
-        source: event.source,
+        source: source,
       );
-      emit(state.copyWith(loading: false, results: results, error: null));
+      emit(
+        state.withPane(
+          source,
+          (p) => p.copyWith(loading: false, results: results),
+        ),
+      );
     } catch (error) {
       await _invalidateUnauthorized(error);
       emit(
-        state.copyWith(
-          loading: false,
-          error: error is BridgeException
-              ? error.message
-              : 'Could not reach the bridge. Check its address and connection.',
+        state.withPane(
+          source,
+          (p) => p.copyWith(
+            loading: false,
+            error: error is BridgeException ? error.message : 'Could not reach the bridge. Check its address and connection.',
+          ),
         ),
       );
     }
@@ -138,7 +145,12 @@ class TorrentBloc extends Bloc<TorrentEvent, TorrentState> {
     LegalBooksSearchRequested event,
     Emitter<TorrentState> emit,
   ) async {
-    emit(state.copyWith(loading: true, error: null, legalResults: const []));
+    emit(
+      state.withPane(
+        freeBooksSource,
+        (p) => p.copyWith(loading: true, legalResults: const []),
+      ),
+    );
     try {
       final results = await _api.searchLegalBooks(
         event.bridgeUrl,
@@ -147,15 +159,23 @@ class TorrentBloc extends Bloc<TorrentEvent, TorrentState> {
         event.sessionToken,
         gutenbergOnly: event.gutenbergOnly,
       );
-      emit(state.copyWith(loading: false, legalResults: results, error: null));
+      emit(
+        state.withPane(
+          freeBooksSource,
+          (p) => p.copyWith(loading: false, legalResults: results),
+        ),
+      );
     } catch (error) {
       await _invalidateUnauthorized(error);
       emit(
-        state.copyWith(
-          loading: false,
-          error: error is BridgeException
-              ? error.message
-              : 'Could not search the legal-books catalog.',
+        state.withPane(
+          freeBooksSource,
+          (p) => p.copyWith(
+            loading: false,
+            error: error is BridgeException
+                ? error.message
+                : 'Could not search the legal-books catalog.',
+          ),
         ),
       );
     }
@@ -165,18 +185,25 @@ class TorrentBloc extends Bloc<TorrentEvent, TorrentState> {
     SearchValidationFailed event,
     Emitter<TorrentState> emit,
   ) {
-    emit(state.copyWith(loading: false, error: event.message));
+    emit(
+      state.withPane(
+        event.source,
+        (p) => p.copyWith(loading: false, error: event.message),
+      ),
+    );
   }
 
   void _onLibraryChanged(LibraryChanged event, Emitter<TorrentState> emit) {
-    emit(state.copyWith(library: event.library, error: null));
+    emit(
+      state.withPane(event.source, (p) => p.copyWith(library: event.library)),
+    );
   }
 
   Future<void> _onLaunchRequested(
     LaunchRequested event,
     Emitter<TorrentState> emit,
   ) async {
-    emit(state.copyWith(error: null));
+    emit(state.withPane(event.source, (p) => p.copyWith()));
     try {
       final job = await _api.launch(
         event.bridgeUrl,
@@ -186,16 +213,21 @@ class TorrentBloc extends Bloc<TorrentEvent, TorrentState> {
         source: event.source,
       );
       emit(
-        state.copyWith(error: null, downloads: _withJob(state.downloads, job)),
+        state
+            .withPane(event.source, (p) => p.copyWith())
+            .copyWith(downloads: _withJob(state.downloads, job)),
       );
       _syncPolling(event.bridgeUrl, event.sessionToken, immediate: true);
     } catch (error) {
       await _invalidateUnauthorized(error);
       emit(
-        state.copyWith(
-          error: error is BridgeException
-              ? error.message
-              : 'Could not start the download on the computer.',
+        state.withPane(
+          event.source,
+          (p) => p.copyWith(
+            error: error is BridgeException
+                ? error.message
+                : 'Could not start the download on the computer.',
+          ),
         ),
       );
       if (error is! BridgeException || error.statusCode != 401) {
@@ -208,7 +240,7 @@ class TorrentBloc extends Bloc<TorrentEvent, TorrentState> {
     LegalBookDownloadRequested event,
     Emitter<TorrentState> emit,
   ) async {
-    emit(state.copyWith(error: null));
+    emit(state.withPane(freeBooksSource, (p) => p.copyWith()));
     try {
       final job = await _api.downloadLegalBook(
         event.bridgeUrl,
@@ -221,10 +253,13 @@ class TorrentBloc extends Bloc<TorrentEvent, TorrentState> {
     } catch (error) {
       await _invalidateUnauthorized(error);
       emit(
-        state.copyWith(
-          error: error is BridgeException
-              ? error.message
-              : 'Could not start the book download on the bridge.',
+        state.withPane(
+          freeBooksSource,
+          (p) => p.copyWith(
+            error: error is BridgeException
+                ? error.message
+                : 'Could not start the book download on the bridge.',
+          ),
         ),
       );
     }

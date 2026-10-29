@@ -44,14 +44,20 @@ class _FreeBooksScreenState extends State<FreeBooksScreen> {
     final token = widget.session.accessToken;
     if (token == null || token.isEmpty) {
       context.read<TorrentBloc>().add(
-        const SearchValidationFailed('Sign in to search free books.'),
+        const SearchValidationFailed(
+          'Sign in to search free books.',
+          source: freeBooksSource,
+        ),
       );
       return;
     }
     final query = _searchController.text.trim();
     if (query.isEmpty) {
       context.read<TorrentBloc>().add(
-        const SearchValidationFailed('Enter a title, author, or keyword.'),
+        const SearchValidationFailed(
+          'Enter a title, author, or keyword.',
+          source: freeBooksSource,
+        ),
       );
       return;
     }
@@ -71,7 +77,10 @@ class _FreeBooksScreenState extends State<FreeBooksScreen> {
     final token = widget.session.accessToken;
     if (token == null || token.isEmpty) {
       context.read<TorrentBloc>().add(
-        const SearchValidationFailed('Sign in to download free books.'),
+        const SearchValidationFailed(
+          'Sign in to download free books.',
+          source: freeBooksSource,
+        ),
       );
       return;
     }
@@ -87,99 +96,102 @@ class _FreeBooksScreenState extends State<FreeBooksScreen> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     return BlocBuilder<TorrentBloc, TorrentState>(
-      builder: (context, state) => Scaffold(
-        appBar: SourceAppBar(
-          session: widget.session,
-          activeDownloadCount: state.activeDownloadCount,
-        ),
-        body: SafeArea(
-          child: ListView(
-            padding: const EdgeInsets.fromLTRB(20, 12, 20, 32),
-            children: [
-              Text(
-                'Project Gutenberg',
-                style: theme.textTheme.headlineSmall?.copyWith(
-                  fontWeight: FontWeight.w800,
-                ),
-              ),
-              const SizedBox(height: 6),
-              Text(
-                'Search free ebooks by title or author. French is selected by default.',
-                style: theme.textTheme.bodyMedium?.copyWith(
-                  color: theme.colorScheme.onSurfaceVariant,
-                ),
-              ),
-              const SizedBox(height: 20),
-              DropdownButtonFormField<String>(
-                initialValue: _language,
-                decoration: const InputDecoration(labelText: 'Book language'),
-                items: _bookLanguages.entries
-                    .map(
-                      (entry) => DropdownMenuItem(
-                        value: entry.key,
-                        child: Text(entry.value),
-                      ),
-                    )
-                    .toList(),
-                onChanged: (language) {
-                  if (language != null) setState(() => _language = language);
-                },
-              ),
-              SwitchListTile.adaptive(
-                key: const Key('gutenberg-only-toggle'),
-                contentPadding: EdgeInsets.zero,
-                title: const Text('Project Gutenberg only'),
-                subtitle: const Text('Do not use Google Books as a fallback'),
-                value: _gutenbergOnly,
-                onChanged: (value) => setState(() => _gutenbergOnly = value),
-              ),
-              const SizedBox(height: 12),
-              TextField(
-                controller: _searchController,
-                textInputAction: TextInputAction.search,
-                onSubmitted: (_) => _search(),
-                decoration: InputDecoration(
-                  hintText: 'Search books by title or author',
-                  prefixIcon: const Icon(Icons.search),
-                  suffixIcon: IconButton(
-                    tooltip: 'Search free books',
-                    onPressed: state.loading ? null : _search,
-                    icon: const Icon(Icons.arrow_forward_rounded),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 24),
-              if (state.loading)
-                const Center(
-                  child: Padding(
-                    padding: EdgeInsets.all(32),
-                    child: CircularProgressIndicator(),
-                  ),
-                )
-              else if (state.error != null)
-                _FreeBooksError(message: state.error!, onRetry: _search)
-              else if (state.legalResults.isEmpty && _hasSearched)
-                const _FreeBooksEmpty()
-              else if (state.legalResults.isNotEmpty) ...[
+      builder: (context, appState) {
+        final state = appState.pane(freeBooksSource);
+        return Scaffold(
+          appBar: SourceAppBar(
+            session: widget.session,
+            activeDownloadCount: appState.activeDownloadCount,
+          ),
+          body: SafeArea(
+            child: ListView(
+              padding: const EdgeInsets.fromLTRB(20, 12, 20, 32),
+              children: [
                 Text(
-                  '${state.legalResults.length} books',
-                  style: theme.textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.w700,
+                  'Project Gutenberg',
+                  style: theme.textTheme.headlineSmall?.copyWith(
+                    fontWeight: FontWeight.w800,
                   ),
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  'Search free ebooks by title or author. French is selected by default.',
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
+                ),
+                const SizedBox(height: 20),
+                DropdownButtonFormField<String>(
+                  initialValue: _language,
+                  decoration: const InputDecoration(labelText: 'Book language'),
+                  items: _bookLanguages.entries
+                      .map(
+                        (entry) => DropdownMenuItem(
+                          value: entry.key,
+                          child: Text(entry.value),
+                        ),
+                      )
+                      .toList(),
+                  onChanged: (language) {
+                    if (language != null) setState(() => _language = language);
+                  },
+                ),
+                SwitchListTile.adaptive(
+                  key: const Key('gutenberg-only-toggle'),
+                  contentPadding: EdgeInsets.zero,
+                  title: const Text('Project Gutenberg only'),
+                  subtitle: const Text('Do not use Google Books as a fallback'),
+                  value: _gutenbergOnly,
+                  onChanged: (value) => setState(() => _gutenbergOnly = value),
                 ),
                 const SizedBox(height: 12),
-                ...state.legalResults.map(
-                  (book) => _FreeBookCard(
-                    book: book,
-                    onDownload: () => _download(book),
+                TextField(
+                  controller: _searchController,
+                  textInputAction: TextInputAction.search,
+                  onSubmitted: (_) => _search(),
+                  decoration: InputDecoration(
+                    hintText: 'Search books by title or author',
+                    prefixIcon: const Icon(Icons.search),
+                    suffixIcon: IconButton(
+                      tooltip: 'Search free books',
+                      onPressed: state.loading ? null : _search,
+                      icon: const Icon(Icons.arrow_forward_rounded),
+                    ),
                   ),
                 ),
-              ] else
-                const _FreeBooksPrompt(),
-            ],
+                const SizedBox(height: 24),
+                if (state.loading)
+                  const Center(
+                    child: Padding(
+                      padding: EdgeInsets.all(32),
+                      child: CircularProgressIndicator(),
+                    ),
+                  )
+                else if (state.error != null)
+                  _FreeBooksError(message: state.error!, onRetry: _search)
+                else if (state.legalResults.isEmpty && _hasSearched)
+                  const _FreeBooksEmpty()
+                else if (state.legalResults.isNotEmpty) ...[
+                  Text(
+                    '${state.legalResults.length} books',
+                    style: theme.textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  ...state.legalResults.map(
+                    (book) => _FreeBookCard(
+                      book: book,
+                      onDownload: () => _download(book),
+                    ),
+                  ),
+                ] else
+                  const _FreeBooksPrompt(),
+              ],
+            ),
           ),
-        ),
-      ),
+        );
+      },
     );
   }
 }

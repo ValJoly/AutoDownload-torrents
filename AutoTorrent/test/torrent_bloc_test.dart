@@ -3,6 +3,7 @@ import 'package:auto_torrent/data/api/bridge_api.dart';
 import 'package:auto_torrent/data/models/torrent_item.dart';
 import 'package:auto_torrent/presentation/bloc/torrent_bloc.dart';
 import 'package:auto_torrent/presentation/bloc/torrent_event.dart';
+import 'package:auto_torrent/presentation/bloc/torrent_state.dart';
 import 'package:auto_torrent/presentation/screens/downloads_screen.dart';
 import 'package:auto_torrent/presentation/screens/free_books_screen.dart';
 import 'package:auto_torrent/presentation/screens/torrent_home_page.dart';
@@ -112,10 +113,7 @@ void main() {
             for (final path in ['/', '/c411', '/free-books'])
               StatefulShellBranch(
                 routes: [
-                  GoRoute(
-                    path: path,
-                    builder: (context, state) => Text(path),
-                  ),
+                  GoRoute(path: path, builder: (context, state) => Text(path)),
                 ],
               ),
           ],
@@ -150,11 +148,10 @@ void main() {
       initialLocation: '/',
       routes: [
         StatefulShellRoute.indexedStack(
-          builder: (context, state, navigationShell) =>
-              SourceNavigationShell(
-                navigationShell: navigationShell,
-                availableProviders: const {'tr4cker', 'c411'},
-              ),
+          builder: (context, state, navigationShell) => SourceNavigationShell(
+            navigationShell: navigationShell,
+            availableProviders: const {'tr4cker', 'c411'},
+          ),
           branches: [
             StatefulShellBranch(
               routes: [
@@ -304,6 +301,46 @@ void main() {
     await bloc.close();
   });
 
+  test('search state is independent for each source tab', () async {
+    final api = _DownloadsApi(
+      const [],
+      searchResults: [
+        TorrentItem(
+          slug: 'a',
+          name: 'Only on TR4CKER',
+          size: '1 MB',
+          seeders: 1,
+          files: 1,
+        ),
+      ],
+    );
+    final bloc = TorrentBloc(api);
+    bloc.add(
+      const SearchRequested(
+        'http://bridge.local',
+        'dune',
+        'books',
+        'session-token',
+        source: 'tr4cker',
+      ),
+    );
+    await bloc.stream.firstWhere(
+      (state) => state.pane('tr4cker').results.isNotEmpty,
+    );
+    bloc.add(const LibraryChanged('books', source: 'c411'));
+    bloc.add(const SearchValidationFailed('Empty', source: 'c411'));
+    final state = await bloc.stream.firstWhere(
+      (state) => state.pane('c411').error != null,
+    );
+
+    expect(state.pane('c411').results, isEmpty);
+    expect(state.pane('c411').library, 'books');
+    expect(state.pane('tr4cker').library, 'audiobooks');
+    expect(state.pane('tr4cker').error, isNull);
+    expect(state.pane('tr4cker').results.single.slug, 'a');
+    await bloc.close();
+  });
+
   test('legal search keeps results separate from torrent results', () async {
     final api = _DownloadsApi(
       const [],
@@ -327,12 +364,12 @@ void main() {
     );
 
     final state = await bloc.stream.firstWhere(
-      (state) => state.legalResults.isNotEmpty,
+      (state) => state.pane(freeBooksSource).legalResults.isNotEmpty,
     );
 
     expect(api.searchedLegalBookQuery, 'Victor Hugo');
-    expect(state.legalResults.single.id, 'volume-1');
-    expect(state.results, isEmpty);
+    expect(state.pane(freeBooksSource).legalResults.single.id, 'volume-1');
+    expect(state.pane('tr4cker').results, isEmpty);
     await bloc.close();
   });
 
