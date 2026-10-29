@@ -227,6 +227,31 @@ class BridgeApi {
     return library == 'books' ? 'livres' : 'livres-audio';
   }
 
+  Future<Set<String>> availableProviders(String bridgeUrl) async {
+    final client = _clientFactory();
+    try {
+      final response = await client
+          .get(Uri.parse('${_base(bridgeUrl)}/api/providers'))
+          .timeout(const Duration(seconds: 12));
+      final data = _decode(response);
+      if (data is! Map<String, dynamic> ||
+          data['tr4cker'] is! bool ||
+          data['c411'] is! bool) {
+        throw BridgeException(
+          'The bridge returned invalid provider availability data.',
+        );
+      }
+      return {
+        if (data['tr4cker'] as bool) 'tr4cker',
+        if (data['c411'] as bool) 'c411',
+      };
+    } on TimeoutException {
+      throw BridgeException('Checking available providers timed out.');
+    } finally {
+      client.close();
+    }
+  }
+
   Future<void> checkConnectivity(String bridgeUrl) async {
     final client = _clientFactory();
     try {

@@ -177,6 +177,7 @@ Backend tests use an isolated PostgreSQL database; set
 ## Exposed endpoints
 
 - `GET /health` — health check.
+- `GET /api/providers` — report whether TR4CKER and C411 are configured without returning API keys.
 - `POST /api/auth/login` — authenticate with `{"username": "...", "password": "..."}` and receive a bearer session.
 - `POST /api/auth/register` — redeem an invitation with `{"code": "...", "username": "...", "password": "..."}` and receive a member session.
 - `GET /api/auth/me` — return the authenticated account.
@@ -191,7 +192,7 @@ Backend tests use an isolated PostgreSQL database; set
 - `GET /api/torrents/{slug}/download` — stream the `.torrent` file.
 - `GET /api/books/free/search?q={query}&lang={language}&gutenberg_only={true|false}` — search Gutendex first; `lang` defaults to `fr` and supports `fr`, `en`, `es`, `de`, `it`, or `pt`. `gutenberg_only=true` disables Google Books fallback; otherwise, if Gutendex is slow or returns no matches and `GOOGLE_BOOKS_API_KEY` is configured, Google Books preview results may be returned.
 - `POST /api/books/free/{book_id}/download` with `{"format":"epub"}` — revalidate the Gutendex record and save its EPUB under the configured Books folder. Jobs appear in the authenticated user's downloads history. The bridge never accepts a client-supplied download URL.
-- `POST /api/torrents/{slug}/launch` — download the `.torrent` file and attempt to launch a local client. This route and other `/api` routes require a bearer session.
+- `POST /api/torrents/{slug}/launch` — download the `.torrent` file and attempt to launch a local client. All `/api` routes except provider availability require a bearer session.
 - `GET /api/downloads?limit=50&offset=0` — list the authenticated user's saved download jobs, newest-updated first. `limit` must be between 1 and 100; `offset` is zero-based.
 - `GET /api/downloads/{job_id}` — fetch the latest progress for a job owned by the authenticated user.
 

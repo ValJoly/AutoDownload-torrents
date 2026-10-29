@@ -524,6 +524,14 @@ def health() -> Dict[str, str]:
     return {"status": "ok"}
 
 
+@app.get("/api/providers")
+def provider_availability() -> Dict[str, bool]:
+    return {
+        "tr4cker": bool(API_KEY),
+        "c411": bool(os.getenv("C411_API_KEY")),
+    }
+
+
 @app.get("/api/torrents")
 def search_torrents(
     q: str = Query(..., description="Search query"),

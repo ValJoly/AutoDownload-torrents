@@ -2,20 +2,46 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 class SourceNavigationShell extends StatelessWidget {
-  const SourceNavigationShell({required this.navigationShell, super.key});
+  const SourceNavigationShell({
+    required this.navigationShell,
+    required this.availableProviders,
+    super.key,
+  });
 
   final StatefulNavigationShell navigationShell;
+  final Set<String> availableProviders;
 
   static const _destinations = [
-    _SourceDestination(label: 'TR4CKER', icon: Icons.travel_explore_outlined),
-    _SourceDestination(label: 'C411', icon: Icons.public_outlined),
-    _SourceDestination(label: 'Free books', icon: Icons.menu_book_outlined),
+    _SourceDestination(
+      label: 'TR4CKER',
+      icon: Icons.travel_explore_outlined,
+      branchIndex: 0,
+      provider: 'tr4cker',
+    ),
+    _SourceDestination(
+      label: 'C411',
+      icon: Icons.public_outlined,
+      branchIndex: 1,
+      provider: 'c411',
+    ),
+    _SourceDestination(
+      label: 'Free books',
+      icon: Icons.menu_book_outlined,
+      branchIndex: 2,
+    ),
   ];
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final colors = theme.colorScheme;
+    final destinations = _destinations
+        .where(
+          (destination) =>
+              destination.provider == null ||
+              availableProviders.contains(destination.provider),
+        )
+        .toList();
 
     return Scaffold(
       body: navigationShell,
@@ -40,15 +66,18 @@ class SourceNavigationShell extends StatelessWidget {
               padding: const EdgeInsets.all(5),
               child: Row(
                 children: [
-                  for (var index = 0; index < _destinations.length; index++)
+                  for (final destination in destinations)
                     Expanded(
                       child: _NavigationDestinationButton(
-                        destination: _destinations[index],
-                        selected: navigationShell.currentIndex == index,
+                        destination: destination,
+                        selected:
+                            navigationShell.currentIndex ==
+                            destination.branchIndex,
                         onPressed: () => navigationShell.goBranch(
-                          index,
+                          destination.branchIndex,
                           initialLocation:
-                              index == navigationShell.currentIndex,
+                              destination.branchIndex ==
+                              navigationShell.currentIndex,
                         ),
                       ),
                     ),
@@ -135,8 +164,15 @@ class _NavigationDestinationButton extends StatelessWidget {
 }
 
 class _SourceDestination {
-  const _SourceDestination({required this.label, required this.icon});
+  const _SourceDestination({
+    required this.label,
+    required this.icon,
+    required this.branchIndex,
+    this.provider,
+  });
 
   final String label;
   final IconData icon;
+  final int branchIndex;
+  final String? provider;
 }

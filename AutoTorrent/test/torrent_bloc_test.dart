@@ -97,6 +97,44 @@ class _DownloadsApi extends BridgeApi {
 }
 
 void main() {
+  testWidgets('source tabs hide unavailable providers and keep Free books', (
+    tester,
+  ) async {
+    final router = GoRouter(
+      initialLocation: '/c411',
+      routes: [
+        StatefulShellRoute.indexedStack(
+          builder: (context, state, navigationShell) => SourceNavigationShell(
+            navigationShell: navigationShell,
+            availableProviders: const {'c411'},
+          ),
+          branches: [
+            for (final path in ['/', '/c411', '/free-books'])
+              StatefulShellBranch(
+                routes: [
+                  GoRoute(
+                    path: path,
+                    builder: (context, state) => Text(path),
+                  ),
+                ],
+              ),
+          ],
+        ),
+      ],
+    );
+
+    await tester.pumpWidget(MaterialApp.router(routerConfig: router));
+    await tester.pumpAndSettle();
+
+    expect(find.byTooltip('TR4CKER'), findsNothing);
+    expect(find.byTooltip('C411'), findsOneWidget);
+    expect(find.byTooltip('Free books'), findsOneWidget);
+    await tester.tap(find.text('Free books'));
+    await tester.pumpAndSettle();
+    expect(find.text('/free-books'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('bottom tabs switch between the three sources', (tester) async {
     tester.view.physicalSize = const Size(320, 900);
     tester.view.devicePixelRatio = 1;
@@ -113,7 +151,10 @@ void main() {
       routes: [
         StatefulShellRoute.indexedStack(
           builder: (context, state, navigationShell) =>
-              SourceNavigationShell(navigationShell: navigationShell),
+              SourceNavigationShell(
+                navigationShell: navigationShell,
+                availableProviders: const {'tr4cker', 'c411'},
+              ),
           branches: [
             StatefulShellBranch(
               routes: [

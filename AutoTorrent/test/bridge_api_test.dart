@@ -6,6 +6,38 @@ import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 
 void main() {
+  test('availableProviders reports configured providers without secrets', () async {
+    late http.Request capturedRequest;
+    final api = BridgeApi(
+      clientFactory: () => MockClient((request) async {
+        capturedRequest = request;
+        return http.Response(
+          jsonEncode({'tr4cker': true, 'c411': false}),
+          200,
+        );
+      }),
+    );
+
+    final providers = await api.availableProviders('http://bridge.local/');
+
+    expect(capturedRequest.method, 'GET');
+    expect(capturedRequest.url.path, '/api/providers');
+    expect(providers, {'tr4cker'});
+  });
+
+  test('availableProviders rejects invalid responses', () async {
+    final api = BridgeApi(
+      clientFactory: () => MockClient(
+        (_) async => http.Response(jsonEncode({'tr4cker': true}), 200),
+      ),
+    );
+
+    await expectLater(
+      api.availableProviders('http://bridge.local'),
+      throwsA(isA<BridgeException>()),
+    );
+  });
+
   test('checkConnectivity calls the bridge health route', () async {
     late http.Request capturedRequest;
     final api = BridgeApi(

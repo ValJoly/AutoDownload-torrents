@@ -33,6 +33,16 @@ class AppRouter {
         if (path == '/loading' || path == '/auth' || path == '/signup') {
           return '/';
         }
+        if (path == '/' && !session.availableProviders.contains('tr4cker')) {
+          return session.availableProviders.contains('c411')
+              ? '/c411'
+              : '/free-books';
+        }
+        if (path == '/c411' && !session.availableProviders.contains('c411')) {
+          return session.availableProviders.contains('tr4cker')
+              ? '/'
+              : '/free-books';
+        }
         if (path == '/invites' && !session.isOwner) return '/';
         return null;
       },
@@ -65,7 +75,10 @@ class AppRouter {
           routes: [
             StatefulShellRoute.indexedStack(
               builder: (context, state, navigationShell) =>
-                  SourceNavigationShell(navigationShell: navigationShell),
+                  SourceNavigationShell(
+                    navigationShell: navigationShell,
+                    availableProviders: session.availableProviders,
+                  ),
               branches: [
                 StatefulShellBranch(
                   routes: [

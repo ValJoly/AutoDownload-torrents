@@ -71,7 +71,12 @@ void main() {
   testWidgets('checks the saved bridge and reports its health', (tester) async {
     final response = Completer<http.Response>();
     final api = BridgeApi(
-      clientFactory: () => MockClient((_) => response.future),
+      clientFactory: () => MockClient((request) {
+        if (request.url.path == '/health') return response.future;
+        return Future.value(
+          http.Response(jsonEncode({'tr4cker': true, 'c411': false}), 200),
+        );
+      }),
     );
     final session = AuthSession(api: api)..bridgeUrl = 'http://bridge.local';
 
@@ -87,7 +92,10 @@ void main() {
 
     response.complete(http.Response(jsonEncode({'status': 'ok'}), 200));
     await tester.pumpAndSettle();
-    expect(find.text('Server is reachable.'), findsOneWidget);
+    expect(
+      find.text('Server is reachable and providers are updated.'),
+      findsOneWidget,
+    );
   });
 
   testWidgets('reports an unhealthy bridge response', (tester) async {
@@ -109,6 +117,34 @@ void main() {
     expect(
       find.text(
         'Could not connect: The bridge health check returned an unhealthy response.',
+      ),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets('reports provider discovery failures separately', (tester) async {
+    final api = BridgeApi(
+      clientFactory: () => MockClient((request) async {
+        if (request.url.path == '/health') {
+          return http.Response(jsonEncode({'status': 'ok'}), 200);
+        }
+        return http.Response('unavailable', 503);
+      }),
+    );
+    final session = AuthSession(api: api)..bridgeUrl = 'http://bridge.local';
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: AppearanceSettingsScreen(session: session),
+      ),
+    );
+    await tester.tap(find.text('Check connection'));
+    await tester.pumpAndSettle();
+
+    expect(
+      find.text(
+        'Server is reachable, but provider availability could not be checked: '
+        'Bridge error (503). Check the bridge logs.',
       ),
       findsOneWidget,
     );

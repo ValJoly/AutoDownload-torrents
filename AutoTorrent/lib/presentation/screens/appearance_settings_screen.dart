@@ -34,10 +34,15 @@ class _AppearanceSettingsScreenState extends State<AppearanceSettingsScreen> {
   Widget build(BuildContext context) {
     final preferences = widget.preferences ?? appPreferences;
     return AnimatedBuilder(
-      animation: preferences,
+      animation: Listenable.merge([
+        preferences,
+        if (widget.session != null) widget.session!,
+      ]),
       builder: (context, _) {
         final theme = Theme.of(context);
         final selectedAccent = preferences.accentColor;
+        final providerAvailabilityError =
+            widget.session?.providerAvailabilityError;
         final isPreset = _accents.any(
           (option) => option.color == selectedAccent,
         );
@@ -74,6 +79,18 @@ class _AppearanceSettingsScreenState extends State<AppearanceSettingsScreen> {
                     _checkingConnectivity ? 'Checking…' : 'Check connection',
                   ),
                 ),
+                if (_connectivityMessage == null &&
+                    providerAvailabilityError != null)
+                  Semantics(
+                    liveRegion: true,
+                    child: Text(
+                      'Provider availability could not be checked: '
+                      '$providerAvailabilityError',
+                      style: theme.textTheme.bodyMedium?.copyWith(
+                        color: theme.colorScheme.error,
+                      ),
+                    ),
+                  ),
                 if (widget.session!.bridgeUrl.isEmpty)
                   Text(
                     'No saved bridge address.',
@@ -210,19 +227,24 @@ class _AppearanceSettingsScreenState extends State<AppearanceSettingsScreen> {
       _checkingConnectivity = true;
       _connectivityMessage = null;
     });
+    var serverReachable = false;
     try {
       await session.api.checkConnectivity(session.bridgeUrl);
+      serverReachable = true;
+      await session.refreshProviderAvailability();
       if (!mounted) return;
       setState(() {
         _connectivitySucceeded = true;
-        _connectivityMessage = 'Server is reachable.';
+        _connectivityMessage = 'Server is reachable and providers are updated.';
       });
     } catch (error) {
       if (!mounted) return;
       final details = error is BridgeException ? error.message : error;
       setState(() {
         _connectivitySucceeded = false;
-        _connectivityMessage = 'Could not connect: $details';
+        _connectivityMessage = serverReachable
+            ? 'Server is reachable, but provider availability could not be checked: $details'
+            : 'Could not connect: $details';
       });
     } finally {
       if (mounted) {

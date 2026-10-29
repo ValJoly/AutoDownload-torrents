@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -22,6 +24,8 @@ class AuthSession extends ChangeNotifier {
   String role = '';
   String? accessToken;
   bool initialized = false;
+  Set<String> availableProviders = {};
+  String? providerAvailabilityError;
 
   bool get isSignedIn => accessToken != null && accessToken!.isNotEmpty;
   bool get isOwner => isSignedIn && role == 'owner';
@@ -57,6 +61,7 @@ class AuthSession extends ChangeNotifier {
     } finally {
       initialized = true;
       notifyListeners();
+      if (bridgeUrl.isNotEmpty) unawaited(_loadProviderAvailability());
     }
   }
 
@@ -119,6 +124,8 @@ class AuthSession extends ChangeNotifier {
     if (bridgeUrl != normalized) {
       await _clearSession(notify: false);
       bridgeUrl = normalized;
+      availableProviders = {};
+      providerAvailabilityError = null;
       final preferences = await SharedPreferences.getInstance();
       await preferences.setString(_bridgeUrlKey, bridgeUrl);
     }
@@ -137,6 +144,30 @@ class AuthSession extends ChangeNotifier {
     accessToken = session.accessToken;
     initialized = true;
     notifyListeners();
+    unawaited(_loadProviderAvailability());
+  }
+
+  Future<void> _loadProviderAvailability() async {
+    try {
+      await refreshProviderAvailability();
+    } catch (_) {
+      // The error is retained for Appearance settings.
+    }
+  }
+
+  Future<void> refreshProviderAvailability() async {
+    try {
+      availableProviders = await api.availableProviders(bridgeUrl);
+      providerAvailabilityError = null;
+      notifyListeners();
+    } catch (error) {
+      availableProviders = {};
+      providerAvailabilityError = error is BridgeException
+          ? error.message
+          : error.toString();
+      notifyListeners();
+      rethrow;
+    }
   }
 
   Future<void> _clearSession({bool notify = true}) async {

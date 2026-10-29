@@ -26,7 +26,9 @@ Use **Check connection** in Settings to test the saved bridge address.
 The app searches `GET /api/torrents` and sends `POST /api/torrents/{slug}/launch`
 with the selected `library` (`audiobooks` or `books`).
 
-Use the bottom tabs to switch between TR4CKER, C411, and free-book search.
+The bottom tabs show TR4CKER and C411 only when their API keys are configured
+on the bridge; free-book search is always available. Use **Check connection**
+in Appearance settings to retry provider discovery if the bridge is unavailable.
 Download history remains available from the source screens. Appearance settings
 let you follow the system theme or choose light/dark mode, and select a preset
 or custom accent color.
