@@ -19,11 +19,11 @@ class BookCover extends StatelessWidget {
     return DecoratedBox(
       position: DecorationPosition.foreground,
       decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(brutalRadius),
-        border: Border.all(color: brutalInk(context), width: 2),
+        borderRadius: BorderRadius.circular(cornerRadius(context, 6)),
+        border: brutalOutline(context, width: 2),
       ),
       child: ClipRRect(
-        borderRadius: BorderRadius.circular(brutalRadius),
+        borderRadius: BorderRadius.circular(cornerRadius(context, 6)),
         child: cover == null
             ? placeholder
             : Image.network(

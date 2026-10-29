@@ -29,30 +29,37 @@ class SourceAppBar extends StatelessWidget implements PreferredSizeWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final brutal = isBrutal(context);
 
     return AppBar(
       titleSpacing: 20,
       title: Row(
         children: [
           Container(
-            padding: const EdgeInsets.all(6),
+            padding: EdgeInsets.all(brutal ? 6 : 8),
             decoration: BoxDecoration(
-              color: theme.scaffoldBackgroundColor,
-              borderRadius: BorderRadius.circular(brutalRadius),
-              border: Border.all(
-                color: brutalInk(context),
-                width: brutalBorderWidth,
-              ),
+              color: brutal
+                  ? theme.scaffoldBackgroundColor
+                  : theme.colorScheme.primary,
+              borderRadius: BorderRadius.circular(cornerRadius(context, 11)),
+              border: brutalOutline(context),
             ),
-            child: Icon(Icons.bolt, color: brutalInk(context), size: 20),
+            child: Icon(
+              Icons.bolt,
+              color: brutal ? brutalInk(context) : theme.colorScheme.onPrimary,
+              size: 20,
+            ),
           ),
           const SizedBox(width: 11),
-          const Expanded(
+          Expanded(
             child: Text(
               'SkyForge',
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
-              style: TextStyle(fontWeight: FontWeight.w900, letterSpacing: 1),
+              style: TextStyle(
+                fontWeight: brutal ? FontWeight.w900 : FontWeight.w800,
+                letterSpacing: brutal ? 1 : null,
+              ),
             ),
           ),
         ],

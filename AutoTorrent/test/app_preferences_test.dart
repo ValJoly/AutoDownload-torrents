@@ -38,6 +38,32 @@ void main() {
     },
   );
 
+  test('neubrutalism style defaults on and persists when turned off', () async {
+    final preferences = AppPreferences();
+    await preferences.initialize();
+    expect(preferences.neubrutalism, isTrue);
+
+    await preferences.setNeubrutalism(false);
+
+    final reloaded = AppPreferences();
+    await reloaded.initialize();
+    expect(reloaded.neubrutalism, isFalse);
+  });
+
+  testWidgets('settings toggle switches the neubrutalism style', (
+    tester,
+  ) async {
+    final preferences = AppPreferences();
+    await preferences.initialize();
+    await tester.pumpWidget(
+      MaterialApp(home: AppearanceSettingsScreen(preferences: preferences)),
+    );
+
+    await tester.tap(find.byKey(const Key('neubrutalism-toggle')));
+    await tester.pumpAndSettle();
+    expect(preferences.neubrutalism, isFalse);
+  });
+
   testWidgets('offers theme modes, presets, and a custom color selector', (
     tester,
   ) async {

@@ -103,11 +103,10 @@ class _AuthScreenState extends State<AuthScreen> {
                         padding: const EdgeInsets.all(9),
                         decoration: BoxDecoration(
                           color: theme.colorScheme.primary,
-                          borderRadius: BorderRadius.circular(brutalRadius),
-                          border: Border.all(
-                            color: brutalInk(context),
-                            width: brutalBorderWidth,
+                          borderRadius: BorderRadius.circular(
+                            cornerRadius(context, 8),
                           ),
+                          border: brutalOutline(context),
                         ),
                         child: const Icon(Icons.bolt, color: Colors.white),
                       ),

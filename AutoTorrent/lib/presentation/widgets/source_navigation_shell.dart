@@ -48,11 +48,13 @@ class SourceNavigationShell extends StatelessWidget {
       bottomNavigationBar: SafeArea(
         top: false,
         child: BrutalBox(
-          margin: const EdgeInsets.fromLTRB(14, 6, 18, 12),
+          margin: isBrutal(context)
+              ? const EdgeInsets.fromLTRB(14, 6, 18, 12)
+              : const EdgeInsets.fromLTRB(16, 6, 16, 10),
           child: Padding(
-            padding: const EdgeInsets.all(6),
+            padding: EdgeInsets.all(isBrutal(context) ? 6 : 5),
             child: Row(
-              spacing: 6,
+              spacing: isBrutal(context) ? 6 : 0,
               children: [
                 for (final destination in destinations)
                   Expanded(
@@ -91,8 +93,13 @@ class _NavigationDestinationButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final brutal = isBrutal(context);
     final colors = Theme.of(context).colorScheme;
     final ink = brutalInk(context);
+    final fill = brutal ? colors.primary : colors.primaryContainer;
+    final onFill = brutal ? colors.onPrimary : colors.onPrimaryContainer;
+    final idle = brutal ? ink : colors.onSurfaceVariant;
+    final radius = cornerRadius(context, 24);
 
     return Semantics(
       button: true,
@@ -102,40 +109,44 @@ class _NavigationDestinationButton extends StatelessWidget {
         message: destination.label,
         child: InkWell(
           onTap: onPressed,
-          splashColor: Colors.transparent,
-          highlightColor: Colors.transparent,
-          hoverColor: Colors.transparent,
-          borderRadius: BorderRadius.circular(brutalRadius),
+          splashColor: brutal ? Colors.transparent : null,
+          highlightColor: brutal ? Colors.transparent : null,
+          hoverColor: brutal ? Colors.transparent : null,
+          borderRadius: BorderRadius.circular(radius),
           child: AnimatedContainer(
             duration: const Duration(milliseconds: 150),
             curve: Curves.easeOut,
-            height: 50,
-            padding: const EdgeInsets.symmetric(horizontal: 6),
+            height: brutal ? 50 : 58,
+            padding: EdgeInsets.symmetric(horizontal: brutal ? 6 : 8),
             decoration: BoxDecoration(
-              color: selected ? colors.primary : Colors.transparent,
-              borderRadius: BorderRadius.circular(brutalRadius - 1),
-              border: Border.all(
-                color: selected ? ink : Colors.transparent,
-                width: 2,
-              ),
+              color: selected ? fill : Colors.transparent,
+              borderRadius: BorderRadius.circular(radius),
+              border: brutal
+                  ? Border.all(
+                      color: selected ? ink : Colors.transparent,
+                      width: 2,
+                    )
+                  : null,
             ),
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 Icon(
                   destination.icon,
-                  color: selected ? colors.onPrimary : ink,
-                  size: 20,
+                  color: selected ? onFill : idle,
+                  size: brutal ? 20 : 21,
                 ),
-                const SizedBox(height: 2),
+                SizedBox(height: brutal ? 2 : 3),
                 Text(
                   destination.label,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: Theme.of(context).textTheme.labelSmall!.copyWith(
-                    color: selected ? colors.onPrimary : ink,
-                    fontWeight: FontWeight.w800,
-                    height: 1.1,
+                    color: selected ? onFill : idle,
+                    fontWeight: brutal || selected
+                        ? FontWeight.w800
+                        : FontWeight.w500,
+                    height: brutal ? 1.1 : null,
                   ),
                 ),
               ],

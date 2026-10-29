@@ -26,9 +26,18 @@ class _AutoTorrentAppState extends State<AutoTorrentApp> {
           routerConfig: AppRouter.router,
           scaffoldMessengerKey: AppKeys.scaffoldMessengerKey,
           debugShowCheckedModeBanner: false,
-          theme: _buildTheme(appPreferences.accentColor, Brightness.light),
-          darkTheme: _buildTheme(appPreferences.accentColor, Brightness.dark),
+          theme: buildAppTheme(
+            appPreferences.accentColor,
+            Brightness.light,
+            neubrutalism: appPreferences.neubrutalism,
+          ),
+          darkTheme: buildAppTheme(
+            appPreferences.accentColor,
+            Brightness.dark,
+            neubrutalism: appPreferences.neubrutalism,
+          ),
           themeMode: appPreferences.themeMode,
+          themeAnimationDuration: Duration.zero,
           builder: (context, child) => snapshot.hasError
               ? Column(
                   children: [
@@ -48,7 +57,58 @@ class _AutoTorrentAppState extends State<AutoTorrentApp> {
   );
 }
 
-ThemeData _buildTheme(Color accentColor, Brightness brightness) {
+ThemeData buildAppTheme(
+  Color accentColor,
+  Brightness brightness, {
+  required bool neubrutalism,
+}) => neubrutalism
+    ? _buildBrutalTheme(accentColor, brightness)
+    : _buildClassicTheme(accentColor, brightness);
+
+ThemeData _buildClassicTheme(Color accentColor, Brightness brightness) {
+  final colorScheme = ColorScheme.fromSeed(
+    seedColor: accentColor,
+    brightness: brightness,
+  );
+  final background = brightness == Brightness.light
+      ? const Color(0xFFFFF7FA)
+      : const Color(0xFF121116);
+
+  return ThemeData(
+    colorScheme: colorScheme,
+    scaffoldBackgroundColor: background,
+    useMaterial3: true,
+    appBarTheme: AppBarTheme(
+      backgroundColor: background,
+      foregroundColor: colorScheme.onSurface,
+    ),
+    inputDecorationTheme: InputDecorationTheme(
+      filled: true,
+      fillColor: colorScheme.surfaceContainerHighest,
+      border: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(14),
+        borderSide: BorderSide.none,
+      ),
+      enabledBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(14),
+        borderSide: BorderSide.none,
+      ),
+      focusedBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(14),
+        borderSide: BorderSide(color: colorScheme.primary, width: 1.5),
+      ),
+    ),
+    chipTheme: ChipThemeData(
+      selectedColor: colorScheme.primary,
+      secondarySelectedColor: colorScheme.secondaryContainer,
+      showCheckmark: false,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+      side: BorderSide(color: colorScheme.outline),
+    ),
+  );
+}
+
+ThemeData _buildBrutalTheme(Color accentColor, Brightness brightness) {
   final dark = brightness == Brightness.dark;
   final ink = dark ? const Color(0xFFF5F0E6) : const Color(0xFF111111);
   final background = dark ? const Color(0xFF121212) : const Color(0xFFFFF1D6);
@@ -85,8 +145,16 @@ ThemeData _buildTheme(Color accentColor, Brightness brightness) {
     padding: const WidgetStatePropertyAll(
       EdgeInsets.symmetric(horizontal: 20, vertical: 12),
     ),
+    // inherit: false matches the default M3 button text style, so Material's
+    // animated button text can interpolate between the two themes.
     textStyle: const WidgetStatePropertyAll(
-      TextStyle(fontWeight: FontWeight.w900, letterSpacing: 0.3),
+      TextStyle(
+        inherit: false,
+        fontSize: 14,
+        height: 1.43,
+        fontWeight: FontWeight.w900,
+        letterSpacing: 0.3,
+      ),
     ),
   );
   OutlineInputBorder inputBorder(double width, [Color? color]) =>
@@ -96,6 +164,7 @@ ThemeData _buildTheme(Color accentColor, Brightness brightness) {
       );
 
   final base = ThemeData(
+    extensions: const [BrutalStyle()],
     colorScheme: colorScheme,
     scaffoldBackgroundColor: background,
     useMaterial3: true,

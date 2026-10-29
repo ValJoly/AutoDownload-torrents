@@ -8,13 +8,16 @@ final appPreferences = AppPreferences();
 class AppPreferences extends ChangeNotifier {
   static const _themeModeKey = 'theme_mode';
   static const _accentColorKey = 'accent_color';
+  static const _neubrutalismKey = 'neubrutalism';
 
   ThemeMode _themeMode = ThemeMode.system;
   Color _accentColor = defaultAccentColor;
+  bool _neubrutalism = true;
   Future<void>? _initialization;
 
   ThemeMode get themeMode => _themeMode;
   Color get accentColor => _accentColor;
+  bool get neubrutalism => _neubrutalism;
 
   Future<void> initialize() => _initialization ??= _load();
 
@@ -28,6 +31,15 @@ class AppPreferences extends ChangeNotifier {
     _accentColor = Color(
       preferences.getInt(_accentColorKey) ?? defaultAccentColor.toARGB32(),
     );
+    _neubrutalism = preferences.getBool(_neubrutalismKey) ?? true;
+    notifyListeners();
+  }
+
+  Future<void> setNeubrutalism(bool value) async {
+    if (value == _neubrutalism) return;
+    final preferences = await SharedPreferences.getInstance();
+    await preferences.setBool(_neubrutalismKey, value);
+    _neubrutalism = value;
     notifyListeners();
   }
 

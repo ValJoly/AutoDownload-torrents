@@ -263,6 +263,16 @@ class _AppearanceSettingsScreenState extends State<AppearanceSettingsScreen> {
                         onSelectionChanged: (selection) =>
                             _saveTheme(context, preferences, selection.first),
                       ),
+                      SwitchListTile(
+                        key: const Key('neubrutalism-toggle'),
+                        contentPadding: EdgeInsets.zero,
+                        title: const Text('Neubrutalism style'),
+                        subtitle: const Text(
+                          'Thick outlines, hard shadows and square corners.',
+                        ),
+                        value: preferences.neubrutalism,
+                        onChanged: preferences.setNeubrutalism,
+                      ),
                     ],
                   ),
                 ),
@@ -346,11 +356,10 @@ class _AppearanceSettingsScreenState extends State<AppearanceSettingsScreen> {
                             ),
                             decoration: BoxDecoration(
                               color: theme.colorScheme.primary,
-                              borderRadius: BorderRadius.circular(brutalRadius),
-                              border: Border.all(
-                                color: brutalInk(context),
-                                width: brutalBorderWidth,
+                              borderRadius: BorderRadius.circular(
+                                cornerRadius(context, 20),
                               ),
+                              border: brutalOutline(context),
                             ),
                             child: Text(
                               'Aa',
