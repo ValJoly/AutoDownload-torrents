@@ -21,6 +21,7 @@ from typing import Any, Dict, Optional
 import requests
 from dotenv import load_dotenv
 from fastapi import BackgroundTasks, Body, Depends, FastAPI, HTTPException, Query, Response
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from torrentool.api import Torrent
@@ -55,6 +56,18 @@ auth_store = AuthStore.from_environment()
 
 auth_router, require_api_credentials = create_auth_api(auth_store)
 app = FastAPI(title="TR4CKER API bridge")
+# Auth uses a bearer token (no cookies), so the browser web app can call the
+# bridge from another origin. Restrict with SKYFORGE_CORS_ORIGINS if needed.
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[
+        origin.strip()
+        for origin in os.getenv("SKYFORGE_CORS_ORIGINS", "*").split(",")
+        if origin.strip()
+    ],
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 app.include_router(auth_router)
 download_jobs: Dict[str, Dict[str, Any]] = {}
 download_jobs_lock = threading.Lock()

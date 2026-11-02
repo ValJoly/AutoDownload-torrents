@@ -219,13 +219,27 @@ DateTime? _parseEpochSeconds(dynamic value) {
   );
 }
 
+/// Trims the address, drops trailing slashes and adds a missing scheme so a
+/// bare host is not treated as a relative URL (https, except for localhost,
+/// IP addresses and explicit ports, which default to http).
+String normalizeBridgeAddress(String value) {
+  var address = value.trim().replaceFirst(RegExp(r'/+$'), '');
+  if (address.isEmpty || address.contains('://')) return address;
+  final host = address.split('/').first;
+  final local =
+      host.contains(':') ||
+      host == 'localhost' ||
+      RegExp(r'^\d{1,3}(\.\d{1,3}){3}$').hasMatch(host);
+  return '${local ? 'http' : 'https'}://$address';
+}
+
 class BridgeApi {
   BridgeApi({http.Client Function()? clientFactory})
     : _clientFactory = clientFactory ?? http.Client.new;
 
   final http.Client Function() _clientFactory;
 
-  String _base(String value) => value.trim().replaceFirst(RegExp(r'/$'), '');
+  String _base(String value) => normalizeBridgeAddress(value);
 
   String _categoryForLibrary(String library) {
     return library == 'books' ? 'livres' : 'livres-audio';

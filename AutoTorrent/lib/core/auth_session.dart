@@ -199,6 +199,5 @@ class AuthSession extends ChangeNotifier {
     return token;
   }
 
-  String _normalizeBridgeUrl(String value) =>
-      value.trim().replaceFirst(RegExp(r'/+$'), '');
+  String _normalizeBridgeUrl(String value) => normalizeBridgeAddress(value);
 }
