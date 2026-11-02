@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
+import 'brutal.dart';
+
 class SourceNavigationShell extends StatelessWidget {
   const SourceNavigationShell({
     required this.navigationShell,
@@ -33,8 +35,6 @@ class SourceNavigationShell extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final colors = theme.colorScheme;
     final destinations = _destinations
         .where(
           (destination) =>
@@ -47,42 +47,31 @@ class SourceNavigationShell extends StatelessWidget {
       body: navigationShell,
       bottomNavigationBar: SafeArea(
         top: false,
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(16, 6, 16, 10),
-          child: DecoratedBox(
-            decoration: BoxDecoration(
-              color: colors.surfaceContainerLow,
-              borderRadius: BorderRadius.circular(28),
-              border: Border.all(color: colors.outlineVariant.withAlpha(100)),
-              boxShadow: [
-                BoxShadow(
-                  color: colors.shadow.withAlpha(36),
-                  blurRadius: 18,
-                  offset: const Offset(0, 6),
-                ),
-              ],
-            ),
-            child: Padding(
-              padding: const EdgeInsets.all(5),
-              child: Row(
-                children: [
-                  for (final destination in destinations)
-                    Expanded(
-                      child: _NavigationDestinationButton(
-                        destination: destination,
-                        selected:
-                            navigationShell.currentIndex ==
-                            destination.branchIndex,
-                        onPressed: () => navigationShell.goBranch(
+        child: BrutalBox(
+          margin: isBrutal(context)
+              ? const EdgeInsets.fromLTRB(14, 6, 18, 12)
+              : const EdgeInsets.fromLTRB(16, 6, 16, 10),
+          child: Padding(
+            padding: EdgeInsets.all(isBrutal(context) ? 6 : 5),
+            child: Row(
+              spacing: isBrutal(context) ? 6 : 0,
+              children: [
+                for (final destination in destinations)
+                  Expanded(
+                    child: _NavigationDestinationButton(
+                      destination: destination,
+                      selected:
+                          navigationShell.currentIndex ==
                           destination.branchIndex,
-                          initialLocation:
-                              destination.branchIndex ==
-                              navigationShell.currentIndex,
-                        ),
+                      onPressed: () => navigationShell.goBranch(
+                        destination.branchIndex,
+                        initialLocation:
+                            destination.branchIndex ==
+                            navigationShell.currentIndex,
                       ),
                     ),
-                ],
-              ),
+                  ),
+              ],
             ),
           ),
         ),
@@ -104,7 +93,13 @@ class _NavigationDestinationButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final brutal = isBrutal(context);
     final colors = Theme.of(context).colorScheme;
+    final ink = brutalInk(context);
+    final fill = brutal ? colors.primary : colors.primaryContainer;
+    final onFill = brutal ? colors.onPrimary : colors.onPrimaryContainer;
+    final idle = brutal ? ink : colors.onSurfaceVariant;
+    final radius = cornerRadius(context, 24);
 
     return Semantics(
       button: true,
@@ -114,44 +109,44 @@ class _NavigationDestinationButton extends StatelessWidget {
         message: destination.label,
         child: InkWell(
           onTap: onPressed,
-          borderRadius: BorderRadius.circular(24),
+          splashColor: brutal ? Colors.transparent : null,
+          highlightColor: brutal ? Colors.transparent : null,
+          hoverColor: brutal ? Colors.transparent : null,
+          borderRadius: BorderRadius.circular(radius),
           child: AnimatedContainer(
-            duration: const Duration(milliseconds: 180),
-            curve: Curves.easeInOutCubic,
-            height: 58,
-            padding: const EdgeInsets.symmetric(horizontal: 8),
+            duration: const Duration(milliseconds: 150),
+            curve: Curves.easeOut,
+            height: brutal ? 50 : 58,
+            padding: EdgeInsets.symmetric(horizontal: brutal ? 6 : 8),
             decoration: BoxDecoration(
-              color: selected ? colors.primaryContainer : Colors.transparent,
-              borderRadius: BorderRadius.circular(24),
+              color: selected ? fill : Colors.transparent,
+              borderRadius: BorderRadius.circular(radius),
+              border: brutal
+                  ? Border.all(
+                      color: selected ? ink : Colors.transparent,
+                      width: 2,
+                    )
+                  : null,
             ),
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                TweenAnimationBuilder<Color?>(
-                  tween: ColorTween(
-                    end: selected
-                        ? colors.onPrimaryContainer
-                        : colors.onSurfaceVariant,
-                  ),
-                  duration: const Duration(milliseconds: 180),
-                  curve: Curves.easeInOutCubic,
-                  builder: (context, color, _) =>
-                      Icon(destination.icon, color: color, size: 21),
+                Icon(
+                  destination.icon,
+                  color: selected ? onFill : idle,
+                  size: brutal ? 20 : 21,
                 ),
-                const SizedBox(height: 3),
-                AnimatedDefaultTextStyle(
-                  duration: const Duration(milliseconds: 180),
-                  curve: Curves.easeInOutCubic,
+                SizedBox(height: brutal ? 2 : 3),
+                Text(
+                  destination.label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                   style: Theme.of(context).textTheme.labelSmall!.copyWith(
-                    color: selected
-                        ? colors.onPrimaryContainer
-                        : colors.onSurfaceVariant,
-                    fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
-                  ),
-                  child: Text(
-                    destination.label,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
+                    color: selected ? onFill : idle,
+                    fontWeight: brutal || selected
+                        ? FontWeight.w800
+                        : FontWeight.w500,
+                    height: brutal ? 1.1 : null,
                   ),
                 ),
               ],

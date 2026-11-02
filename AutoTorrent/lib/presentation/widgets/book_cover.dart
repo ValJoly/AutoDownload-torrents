@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import 'brutal.dart';
+
 class BookCover extends StatelessWidget {
   const BookCover({super.key, this.url});
 
@@ -14,17 +16,24 @@ class BookCover extends StatelessWidget {
       child: const Icon(Icons.menu_book_outlined),
     );
     final cover = url;
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(6),
-      child: cover == null
-          ? placeholder
-          : Image.network(
-              cover,
-              width: 64,
-              height: 96,
-              fit: BoxFit.cover,
-              errorBuilder: (_, _, _) => placeholder,
-            ),
+    return DecoratedBox(
+      position: DecorationPosition.foreground,
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(cornerRadius(context, 6)),
+        border: brutalOutline(context, width: 2),
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(cornerRadius(context, 6)),
+        child: cover == null
+            ? placeholder
+            : Image.network(
+                cover,
+                width: 64,
+                height: 96,
+                fit: BoxFit.cover,
+                errorBuilder: (_, _, _) => placeholder,
+              ),
+      ),
     );
   }
 }

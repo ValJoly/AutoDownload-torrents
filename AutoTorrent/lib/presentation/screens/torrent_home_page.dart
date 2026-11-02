@@ -7,6 +7,7 @@ import '../bloc/torrent_bloc.dart';
 import '../bloc/torrent_event.dart';
 import '../bloc/torrent_state.dart';
 import '../widgets/book_cover.dart';
+import '../widgets/brutal.dart';
 import '../widgets/source_app_bar.dart';
 
 class TorrentHomePage extends StatefulWidget {
@@ -120,16 +121,18 @@ class _TorrentHomePageState extends State<TorrentHomePage> {
                         ),
                       ),
                       const SizedBox(height: 22),
-                      TextField(
-                        controller: _searchController,
-                        textInputAction: TextInputAction.search,
-                        onSubmitted: (_) => _search(),
-                        decoration: InputDecoration(
-                          hintText: 'Search titles, authors, or keywords',
-                          prefixIcon: const Icon(Icons.search),
-                          suffixIcon: IconButton(
-                            onPressed: state.loading ? null : _search,
-                            icon: const Icon(Icons.arrow_forward_rounded),
+                      BrutalField(
+                        child: TextField(
+                          controller: _searchController,
+                          textInputAction: TextInputAction.search,
+                          onSubmitted: (_) => _search(),
+                          decoration: InputDecoration(
+                            hintText: 'Search titles, authors, or keywords',
+                            prefixIcon: const Icon(Icons.search),
+                            suffixIcon: IconButton(
+                              onPressed: state.loading ? null : _search,
+                              icon: const Icon(Icons.arrow_forward_rounded),
+                            ),
                           ),
                         ),
                       ),
@@ -150,23 +153,13 @@ class _TorrentHomePageState extends State<TorrentHomePage> {
                             Text('Library', style: theme.textTheme.labelLarge),
                             const SizedBox(width: 8),
                             ChoiceChip(
-                              selectedColor: theme.colorScheme.primary,
-                              backgroundColor: Colors.transparent,
-                              side: BorderSide(
-                                color: state.library == 'audiobooks'
-                                    ? Colors.transparent
-                                    : theme.colorScheme.primary,
-                                width: 1,
-                              ),
                               label: Text(
                                 'Audiobooks',
                                 style: TextStyle(
                                   color: state.library == 'audiobooks'
                                       ? theme.colorScheme.onPrimary
                                       : theme.colorScheme.onSurface,
-                                  fontWeight: state.library == 'audiobooks'
-                                      ? FontWeight.w700
-                                      : FontWeight.w500,
+                                  fontWeight: FontWeight.w800,
                                 ),
                               ),
                               selected: state.library == 'audiobooks',
@@ -182,23 +175,13 @@ class _TorrentHomePageState extends State<TorrentHomePage> {
                             ),
                             const SizedBox(width: 8),
                             ChoiceChip(
-                              selectedColor: theme.colorScheme.primary,
-                              backgroundColor: Colors.transparent,
-                              side: BorderSide(
-                                color: state.library == 'books'
-                                    ? Colors.transparent
-                                    : theme.colorScheme.primary,
-                                width: 1,
-                              ),
                               label: Text(
                                 'Books',
                                 style: TextStyle(
                                   color: state.library == 'books'
                                       ? theme.colorScheme.onPrimary
                                       : theme.colorScheme.onSurface,
-                                  fontWeight: state.library == 'books'
-                                      ? FontWeight.w700
-                                      : FontWeight.w500,
+                                  fontWeight: FontWeight.w800,
                                 ),
                               ),
                               selected: state.library == 'books',
@@ -296,10 +279,7 @@ class _TorrentCardState extends State<_TorrentCard> {
     final theme = Theme.of(context);
     final torrent = widget.torrent;
     final onLaunch = widget.onLaunch;
-    return Card(
-      margin: const EdgeInsets.only(bottom: 12),
-      elevation: 0,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+    return BrutalCard(
       child: Padding(
         padding: const EdgeInsets.all(16),
         child: Row(
@@ -421,8 +401,7 @@ class _ErrorCard extends StatelessWidget {
   final VoidCallback onRetry;
 
   @override
-  Widget build(BuildContext context) => Card(
-    elevation: 0,
+  Widget build(BuildContext context) => BrutalCard(
     color: Theme.of(context).colorScheme.errorContainer,
     child: Padding(
       padding: const EdgeInsets.all(16),

@@ -7,6 +7,7 @@ import '../../data/api/bridge_api.dart';
 import '../bloc/torrent_bloc.dart';
 import '../bloc/torrent_event.dart';
 import '../bloc/torrent_state.dart';
+import '../widgets/brutal.dart';
 
 class DownloadsScreen extends StatelessWidget {
   const DownloadsScreen({required this.session, super.key});
@@ -121,10 +122,8 @@ class _DownloadHistoryItem extends StatelessWidget {
         ? theme.colorScheme.tertiary
         : theme.colorScheme.primary;
 
-    return Card(
-      margin: const EdgeInsets.only(bottom: 10),
-      elevation: 0,
-      color: color.withAlpha(20),
+    return BrutalCard(
+      color: color.withAlpha(60),
       child: Padding(
         padding: const EdgeInsets.all(14),
         child: Column(

@@ -1,0 +1,9 @@
+build
+.dart_tool
+android
+ios
+macos
+windows
+linux
+.idea
+.widget_preview
